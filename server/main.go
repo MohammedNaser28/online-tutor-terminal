@@ -18,7 +18,8 @@ func main() {
 		log.Fatalf("config error: %v", err)
 	}
 
-	log.Printf("starting server on :%d", cfg.Port)
+	initLogLevel(cfg.LogLevel)
+	logInfo("starting server on :%d", cfg.Port)
 
 	srv := NewServer(cfg)
 
