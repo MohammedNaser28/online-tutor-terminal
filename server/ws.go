@@ -184,6 +184,17 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 			}
 			conn.SetReadDeadline(time.Now().Add(pongWait))
 			session.Touch()
+			var resize struct {
+				Type string `json:"type"`
+				Cols int    `json:"cols"`
+				Rows int    `json:"rows"`
+			}
+			if json.Unmarshal(data, &resize) == nil && resize.Type == "resize" && resize.Cols > 0 && resize.Rows > 0 {
+				if err := pty.Setsize(term, &pty.Winsize{Rows: uint16(resize.Rows), Cols: uint16(resize.Cols)}); err != nil {
+					log.Printf("pty resize %s: %v", token, err)
+				}
+				continue
+			}
 			if _, err := term.Write(data); err != nil {
 				log.Printf("pty write %s: %v", token, err)
 				return
