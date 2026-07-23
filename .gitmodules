@@ -1,0 +1,3 @@
+[submodule "qo"]
+	path = qo
+	url = git@github.com:ahmedYasserM/qo.git
