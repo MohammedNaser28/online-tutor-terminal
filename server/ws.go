@@ -183,6 +183,7 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 				return
 			}
 			conn.SetReadDeadline(time.Now().Add(pongWait))
+			session.Touch()
 			if _, err := term.Write(data); err != nil {
 				log.Printf("pty write %s: %v", token, err)
 				return
@@ -199,6 +200,29 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 				return
 			}
 			conn.SetWriteDeadline(time.Time{})
+		}
+	}()
+
+	go func() {
+		check := time.NewTicker(5 * time.Second)
+		defer check.Stop()
+		for range check.C {
+			session.mu.Lock()
+			st := session.State()
+			session.mu.Unlock()
+			if st != SessionActive {
+				continue
+			}
+			idle := time.Since(session.LastActive())
+			if idle < srv.config.IdleTimeout {
+				continue
+			}
+			log.Printf("session %s idle for %v, closing", token, idle)
+			wsNotify(session, wsMessage{Type: "shutdown", Message: "Session closed due to inactivity"})
+			time.Sleep(3 * time.Second)
+			conn.Close()
+			srv.cleanupSession(token)
+			return
 		}
 	}()
 
