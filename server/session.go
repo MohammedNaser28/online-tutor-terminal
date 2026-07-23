@@ -44,6 +44,7 @@ type Session struct {
 
 	state      atomic.Int64
 	lastActive atomic.Int64
+	score      atomic.Int64
 
 	mu   sync.Mutex
 	Cmd  *exec.Cmd
@@ -78,6 +79,21 @@ func (s *Session) LastActive() time.Time {
 
 func (s *Session) Touch() {
 	s.lastActive.Store(time.Now().UnixNano())
+}
+
+func (s *Session) Score() int {
+	return int(s.score.Load())
+}
+
+func (s *Session) SetScore(n int) {
+	s.score.Store(int64(n))
+	s.Touch()
+}
+
+func (s *Session) IncrementScore() int {
+	n := int(s.score.Add(1))
+	s.Touch()
+	return n
 }
 
 func (s *Session) Close() {

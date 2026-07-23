@@ -22,7 +22,7 @@ func (s *Server) handleLeaderboardData(w http.ResponseWriter, r *http.Request) {
 		entries = append(entries, leaderboardEntry{
 			ID:     ses.StudentID,
 			Name:   ses.StudentID,
-			Solved: 0,
+			Solved: ses.Score(),
 			Avatar: ses.StudentID[:1],
 		})
 	})

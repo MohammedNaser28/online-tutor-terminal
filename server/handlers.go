@@ -87,6 +87,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleWebSocket(w, r)
 	case "GET /api/leaderboard":
 		s.handleLeaderboardData(w, r)
+	case "POST /api/solved":
+		s.handleSolved(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -236,6 +238,27 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		Difficulty: session.Difficulty,
 		Message:    "Session created. Connecting...",
 	})
+}
+
+func (s *Server) handleSolved(w http.ResponseWriter, r *http.Request) {
+	token := r.FormValue("token")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
+	if token == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "token required"})
+		return
+	}
+
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+
+	n := session.IncrementScore()
+	log.Printf("session %s solved challenge, score now %d", token, n)
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "score": n})
 }
 
 func clientIP(r *http.Request) string {
