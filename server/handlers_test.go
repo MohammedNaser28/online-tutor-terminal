@@ -353,7 +353,21 @@ func TestAdminShutdown_RequiresAuth(t *testing.T) {
 	}
 }
 
-func TestAdminHTML_RequiresAuth(t *testing.T) {
+func TestAdminState_RequiresAuth(t *testing.T) {
+	s, cleanup := setupJoinTest(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/admin/state", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminHTML_ServesWithoutAuth(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
@@ -362,8 +376,8 @@ func TestAdminHTML_RequiresAuth(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (login page HTML, auth via JS), got %d", w.Code)
 	}
 }
 

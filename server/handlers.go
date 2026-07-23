@@ -54,22 +54,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin routes require authentication
+	// Admin routes
 	if r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
-		if !s.adminAuth(w, r) {
-			return
-		}
 		switch r.Method + " " + r.URL.Path {
 		case "GET /admin":
+			// Serve the login page HTML without auth (login form sends token via JS)
 			s.handleAdmin(w, r)
 		case "GET /admin/state":
-			s.handleAdminState(w, r)
+			if s.adminAuth(w, r) { s.handleAdminState(w, r) }
 		case "POST /admin/kill":
-			s.handleAdminKill(w, r)
+			if s.adminAuth(w, r) { s.handleAdminKill(w, r) }
 		case "POST /admin/shutdown":
-			s.handleAdminShutdown(w, r)
+			if s.adminAuth(w, r) { s.handleAdminShutdown(w, r) }
 		case "GET /admin/leaderboard":
-			s.handleLeaderboardPage(w, r)
+			if s.adminAuth(w, r) { s.handleLeaderboardPage(w, r) }
 		default:
 			http.NotFound(w, r)
 		}
