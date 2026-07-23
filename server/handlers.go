@@ -56,7 +56,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Admin routes
 	if r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
-		switch r.Method + " " + r.URL.Path {
+		switch r.Method + " " + strings.TrimRight(r.URL.Path, "/") {
 		case "GET /admin":
 			// Serve the login page HTML without auth (login form sends token via JS)
 			s.handleAdmin(w, r)
