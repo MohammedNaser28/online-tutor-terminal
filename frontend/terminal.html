@@ -200,8 +200,51 @@ body {
   #mobile-toggle { display: none; }
   #header-bar { padding: 8px 12px; flex-wrap: wrap; }
   #info-box { font-size: 12px; gap: 10px; }
-  #terminal-wrapper { padding: 8px; }
+   #terminal-wrapper { padding: 8px; }
 }
+/* Exit confirmation overlay */
+#exit-confirm {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 300;
+}
+#exit-confirm.active { display: flex; }
+.exit-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-red);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+}
+.exit-modal h2 { color: var(--accent-red); margin-bottom: 8px; font-size: 20px; }
+.exit-modal p { color: var(--text-secondary); margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+.exit-modal code {
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: 'SF Mono', monospace;
+  font-size: 14px;
+  color: var(--accent-yellow);
+}
+.exit-countdown {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--accent-red);
+  font-family: 'SF Mono', monospace;
+  margin: 16px 0;
+}
+.exit-actions { display: flex; gap: 12px; justify-content: center; }
+.exit-actions .btn { padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.exit-actions .btn-cancel { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+.exit-actions .btn-cancel:hover { background: var(--border-color); }
+.exit-actions .btn-confirm { background: var(--accent-red); color: white; }
+.exit-actions .btn-confirm:hover { background: #ff6b6b; }
 </style>
 </head>
 <body>
@@ -244,6 +287,18 @@ body {
       <button data-key="down">↓</button>
       <button data-key="left">←</button>
       <button data-key="right">→</button>
+    </div>
+  </div>
+</div>
+
+<div id="exit-confirm">
+  <div class="exit-modal">
+    <h2>⚠️ End Session</h2>
+    <p>The command <code>exit</code> will end your session and disconnect you.</p>
+    <div class="exit-countdown" id="exit-countdown">15</div>
+    <div class="exit-actions">
+      <button class="btn btn-cancel" onclick="cancelExit()">Cancel</button>
+      <button class="btn btn-confirm" onclick="confirmExit()">Exit Anyway</button>
     </div>
   </div>
 </div>
@@ -446,7 +501,69 @@ if (token) {
     el.classList.toggle('visible');
   });
 
+  var inputBuffer = '';
+  var exitPending = false;
+
+  function clearExitState() {
+    if (exitPending) {
+      clearInterval(exitPending);
+      exitPending = false;
+    }
+    document.getElementById('exit-confirm').classList.remove('active');
+    inputBuffer = '';
+  }
+
+  function showExitConfirm() {
+    inputBuffer = '';
+    var el = document.getElementById('exit-confirm');
+    el.classList.add('active');
+    var countdown = 15;
+    var timerEl = document.getElementById('exit-countdown');
+    timerEl.textContent = countdown;
+    exitPending = setInterval(function () {
+      countdown--;
+      timerEl.textContent = countdown;
+      if (countdown <= 0) {
+        clearExitState();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send('\r');
+        }
+      }
+    }, 1000);
+  }
+
+  window.confirmExit = function () {
+    clearExitState();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('\r');
+    }
+  };
+
+  window.cancelExit = function () {
+    clearExitState();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('\x15');
+    }
+  };
+
   term.onData(function (data) {
+    if (exitPending) return;
+
+    if (data === '\r') {
+      var trimmed = inputBuffer.trim();
+      if (trimmed === 'exit' || trimmed.match(/^exit[\s;|&]/)) {
+        showExitConfirm();
+        return;
+      }
+      inputBuffer = '';
+    } else if (data === '\x7f' || data === '\b') {
+      inputBuffer = inputBuffer.slice(0, -1);
+    } else if (data === '\x03' || data === '\x15' || data === '\x1b') {
+      inputBuffer = '';
+    } else if (data.length === 1 && data >= ' ') {
+      inputBuffer += data;
+    }
+
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }

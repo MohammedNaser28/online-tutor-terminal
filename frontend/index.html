@@ -107,10 +107,10 @@
       const data = await res.json();
 
       if (data.status === 'success') {
-        var params = new URLSearchParams({ token: data.token });
-        if (data.title) params.set('title', data.title);
-        if (data.difficulty) params.set('difficulty', data.difficulty);
-        window.location.href = '/terminal?' + params.toString();
+        var qParams = new URLSearchParams({ token: data.token });
+        if (data.title) qParams.set('title', data.title);
+        if (data.difficulty) qParams.set('difficulty', data.difficulty);
+        window.location.href = '/terminal?' + qParams.toString();
       } else if (data.status === 'queued') {
         statusEl.textContent = data.message;
         statusEl.classList.add('visible');
