@@ -156,7 +156,7 @@ func DecryptTarArchive(encryptedFile, password, utKey string, rootfsPath string)
 			continue
 		}
 
-		dest := filepath.Join(rootfsPath, "tmp", header.Name)
+		dest := filepath.Join(rootfsPath, "rootfs", "tmp", header.Name)
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(dest, os.FileMode(header.Mode)); err != nil {

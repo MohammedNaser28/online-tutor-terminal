@@ -10,17 +10,33 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/ahmedYasserM/qo/pkg/logger"
+	"github.com/creack/pty"
+	"golang.org/x/sys/unix"
 )
+
+//go:embed rootfs.tar.gz
+var embeddedRootfs []byte
+
+const sessionsDir = "/tmp/qo-sessions"
+const defaultUser string = "ahmed"
+
+func GenerateSessionPath(studentID string) (string, error) {
+	rand.Seed(time.Now().UnixNano())
+	suffix := fmt.Sprintf("%04x", rand.Int31())
+	sessionID := fmt.Sprintf("%s-%s", studentID, suffix)
+	sessionPath := filepath.Join(sessionsDir, sessionID)
+	return sessionPath, nil
+}
 
 const maxConcurrentSessions = 8
 
-// checkConcurrencyCap checks if we're at the maximum concurrent sessions
 func checkConcurrencyCap() error {
 	lockFile := filepath.Join("/tmp", "qo-sessions.lock")
 	file, err := os.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, 0644)
@@ -29,12 +45,10 @@ func checkConcurrencyCap() error {
 	}
 	defer file.Close()
 
-	// Try to get an exclusive lock
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		return fmt.Errorf("concurrent sessions limit reached")
 	}
 
-	// Read current session count
 	countBytes, err := os.ReadFile(lockFile)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read session count: %w", err)
@@ -48,15 +62,11 @@ func checkConcurrencyCap() error {
 		}
 	}
 
-	// Check if we're at capacity
 	if count >= maxConcurrentSessions {
 		return fmt.Errorf("concurrent sessions limit reached")
 	}
 
-	// Increment count
 	count++
-
-	// Write updated count
 	if err := os.WriteFile(lockFile, []byte(strconv.Itoa(count)), 0644); err != nil {
 		return fmt.Errorf("failed to write session count: %w", err)
 	}
@@ -64,7 +74,6 @@ func checkConcurrencyCap() error {
 	return nil
 }
 
-// releaseConcurrencyCap releases the concurrency cap
 func releaseConcurrencyCap() {
 	lockFile := filepath.Join("/tmp", "qo-sessions.lock")
 	file, err := os.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, 0644)
@@ -74,13 +83,8 @@ func releaseConcurrencyCap() {
 	}
 	defer file.Close()
 
-	// Release the lock
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to release concurrency lock: %v", err))
-		return
-	}
+	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 
-	// Decrement count
 	countBytes, err := os.ReadFile(lockFile)
 	if err == nil && len(countBytes) > 0 {
 		sessionCount, err := strconv.Atoi(string(countBytes))
@@ -92,26 +96,10 @@ func releaseConcurrencyCap() {
 		}
 	}
 
-	// Clean up lock file if empty
 	sessionCount, _ := strconv.Atoi(string(countBytes))
 	if sessionCount <= 0 {
 		os.Remove(lockFile)
 	}
-}
-
-//go:embed rootfs.tar.gz
-var embeddedRootfs []byte
-
-const sessionsDir = "/tmp/qo-sessions"
-const defaultUser string = "ahmed"
-
-// GenerateSessionPath creates a unique per-session path with random suffix
-func GenerateSessionPath(studentID string) (string, error) {
-	rand.Seed(time.Now().UnixNano())
-	suffix := fmt.Sprintf("%04x", rand.Int31())
-	sessionID := fmt.Sprintf("%s-%s", studentID, suffix)
-	sessionPath := filepath.Join(sessionsDir, sessionID)
-	return sessionPath, nil
 }
 
 // setupUserNamespaceMapping sets up UID/GID mapping for the new user namespace
@@ -120,22 +108,17 @@ func setupUserNamespaceMapping(pid int) error {
 	gidMapPath := fmt.Sprintf("/proc/%d/gid_map", pid)
 	setgroupsPath := fmt.Sprintf("/proc/%d/setgroups", pid)
 
-	// Get current host UID/GID to ensure files in rootfs are writable
 	hostUID := os.Getuid()
 	hostGID := os.Getgid()
 
-	// Write setgroups: deny before gid_map
 	if err := os.WriteFile(setgroupsPath, []byte("deny"), 0644); err != nil {
 		return fmt.Errorf("failed to write setgroups: %w", err)
 	}
 
-	// Map student UID to UID 0 inside namespace, and to the current host UID outside
-	// This ensures the student can write to files in the rootfs (which are owned by hostUID)
 	if err := os.WriteFile(uidMapPath, []byte(fmt.Sprintf("0 %d 1", hostUID)), 0644); err != nil {
 		return fmt.Errorf("failed to write uid_map: %w", err)
 	}
 
-	// Map student GID to GID 0 inside namespace, and to the current host GID outside
 	if err := os.WriteFile(gidMapPath, []byte(fmt.Sprintf("0 %d 1", hostGID)), 0644); err != nil {
 		return fmt.Errorf("failed to write gid_map: %w", err)
 	}
@@ -143,66 +126,56 @@ func setupUserNamespaceMapping(pid int) error {
 	return nil
 }
 
-// setupCgroupV2 creates a cgroup for the session and sets resource limits
 func setupCgroupV2(sessionID string, pid int) error {
-	cgroupPath := filepath.Join("/sys/fs/cgroup", sessionsDir, sessionID)
+	cgroupPath := filepath.Join("/sys/fs/cgroup", "qo-sessions", sessionID)
 
-	// Create the cgroup directory
-	if err := os.MkdirAll(cgroupPath, 0755); err != nil {
-		return fmt.Errorf("failed to create cgroup directory: %w", err)
+	parentPath := filepath.Dir(cgroupPath)
+	if err := os.MkdirAll(parentPath, 0755); err != nil {
+		return fmt.Errorf("failed to create parent cgroup: %w", err)
+	}
+	for _, ctrl := range []string{"memory", "pids", "cpu"} {
+		_ = os.WriteFile(filepath.Join(parentPath, "cgroup.subtree_control"),
+			[]byte("+"+ctrl), 0644)
 	}
 
-	// Enable required controllers via subtree_control
-	controllers := []string{"memory", "pids", "cpu"}
-	for _, controller := range controllers {
-		controlPath := filepath.Join(cgroupPath, "cgroup.subtree_control")
-		if err := os.WriteFile(controlPath, []byte("+"+controller), 0644); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to enable %s controller: %v", controller, err))
-			// Don't fail if controller enablement fails - some controllers may not be available
-		}
+	if err := os.Mkdir(cgroupPath, 0755); err != nil {
+		return fmt.Errorf("failed to create cgroup: %w", err)
 	}
 
-	// Set memory limit (default 512M)
-	memoryPath := filepath.Join(cgroupPath, "memory.max")
-	if err := os.WriteFile(memoryPath, []byte("512M"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupPath, "memory.max"), []byte("536870912"), 0644); err != nil {
 		return fmt.Errorf("failed to set memory limit: %w", err)
 	}
 
-	// Set PIDs limit (default 200)
-	pidsPath := filepath.Join(cgroupPath, "pids.max")
-	if err := os.WriteFile(pidsPath, []byte("200"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupPath, "pids.max"), []byte("200"), 0644); err != nil {
 		return fmt.Errorf("failed to set PIDs limit: %w", err)
 	}
 
-	// Set CPU weight (default 1000, which is the default weight)
-	cpuPath := filepath.Join(cgroupPath, "cpu.max")
-	if err := os.WriteFile(cpuPath, []byte(fmt.Sprintf("%d %d", 1000*1000, 1000*1000)), 0644); err != nil {
-		return fmt.Errorf("failed to set CPU weight: %w", err)
+	if err := os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), []byte("1000000 1000000"), 0644); err != nil {
+		return fmt.Errorf("failed to set CPU limit: %w", err)
 	}
 
-	// Move the child process into the cgroup
-	procsPath := filepath.Join(cgroupPath, "cgroup.procs")
-	if err := os.WriteFile(procsPath, []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), []byte(strconv.Itoa(pid)), 0644); err != nil {
 		return fmt.Errorf("failed to move process into cgroup: %w", err)
 	}
 
 	return nil
 }
 
-// cleanupSession performs cleanup after the session ends
 func cleanupSession(rootfsPath string, sessionID string) {
-	// Unmount /proc
-	if err := syscall.Unmount(rootfsPath+"/proc", 0); err != nil && !os.IsNotExist(err) {
+	rootfsContent := filepath.Join(rootfsPath, "rootfs")
+
+	if err := syscall.Unmount(filepath.Join(rootfsContent, "dev", "pts"), 0); err != nil && !os.IsNotExist(err) {
+		logger.Warn(fmt.Sprintf("Failed to unmount devpts: %v", err))
+	}
+	if err := syscall.Unmount(filepath.Join(rootfsContent, "proc"), 0); err != nil && !os.IsNotExist(err) {
 		logger.Warn(fmt.Sprintf("Failed to unmount /proc: %v", err))
 	}
 
-	// Remove the per-session rootfs directory
 	if err := os.RemoveAll(rootfsPath); err != nil {
 		logger.Warn(fmt.Sprintf("Failed to remove rootfs directory: %v", err))
 	}
 
-	// Remove the cgroup
-	cgroupPath := filepath.Join("/sys/fs/cgroup", sessionsDir, sessionID)
+	cgroupPath := filepath.Join("/sys/fs/cgroup", "qo-sessions", sessionID)
 	if err := os.RemoveAll(cgroupPath); err != nil && !os.IsNotExist(err) {
 		logger.Warn(fmt.Sprintf("Failed to remove cgroup: %v", err))
 	}
@@ -216,10 +189,12 @@ func pathExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
-// ExtractRootfs extracts the tar-archived rootfs folder to the specified path
+// ExtractRootfs extracts the tar-archived rootfs folder in /tmp
 func ExtractRootfs(rootfsPath string) error {
 	if pathExists(rootfsPath) {
-		_ = syscall.Unmount(filepath.Join(rootfsPath, "proc"), syscall.MNT_FORCE) // force unmount of /proc to handle possible previous exits using external kill signal
+		rootfsContent := filepath.Join(rootfsPath, "rootfs")
+		_ = syscall.Unmount(filepath.Join(rootfsContent, "dev", "pts"), syscall.MNT_FORCE)
+		_ = syscall.Unmount(filepath.Join(rootfsContent, "proc"), syscall.MNT_FORCE)
 
 		if err := os.RemoveAll(rootfsPath); err != nil {
 			return err
@@ -273,15 +248,15 @@ func ExtractRootfs(rootfsPath string) error {
 			if err := os.Symlink(header.Linkname, destPath); err != nil {
 				return err
 			}
-
 		case tar.TypeChar:
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				return err
 			}
-			if err := syscall.Mknod(destPath, syscall.S_IFCHR|uint32(os.FileMode(header.Mode)&0777), int(mkdev(uint64(header.Devmajor), uint64(header.Devminor)))); err != nil {
+			dev := int(unix.Mkdev(uint32(header.Devmajor), uint32(header.Devminor)))
+			if err := syscall.Mknod(destPath, syscall.S_IFCHR|uint32(header.Mode), dev); err != nil {
 				return err
 			}
-		}
+}
 	}
 
 	binDir := filepath.Join(rootfsPath, "bin")
@@ -299,142 +274,158 @@ func ExtractRootfs(rootfsPath string) error {
 	return nil
 }
 
-func mkdev(major, minor uint64) uint64 {
-	return (major & 0xfff) << 8 | (minor & 0xff) | (minor & 0xfff00) << 12
-}
-
-func createDevices(rootfsPath string) {
-	devices := []struct {
-		path   string
-		major  int
-		minor  int
-	}{
-		{"/dev/null", 1, 3},
-		{"/dev/zero", 1, 5},
-		{"/dev/random", 1, 8},
-		{"/dev/urandom", 1, 9},
-	}
-
-	for _, dev := range devices {
-		devPath := filepath.Join(rootfsPath, dev.path)
-		if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
-			continue
-		}
-
-		// Try bind-mount from host (works when parent ns shares mounts)
-		if _, err := os.Stat(dev.path); err == nil {
-			if _, err := os.Stat(devPath); os.IsNotExist(err) {
-				os.WriteFile(devPath, []byte{}, 0666)
-			}
-			if err := syscall.Mount(dev.path, devPath, "", syscall.MS_BIND, ""); err == nil {
-				continue
-			}
-		}
-
-		// Try mknod
-		devNum := (dev.major << 8) | dev.minor
-		if err := syscall.Mknod(devPath, syscall.S_IFCHR|0666, devNum); err == nil {
-			continue
-		}
-
-		// Fallback: regular file with open permissions
-		os.WriteFile(devPath, []byte{}, 0666)
-	}
-}
-
 func StartSandBox(rootfsPath string, duration time.Duration) error {
 
-	createDevices(rootfsPath)
-
 	if len(os.Args) > 0 && os.Args[0] == "init" {
-		// Release concurrency cap when child process starts
-		releaseConcurrencyCap()
-		if err := syscall.Chroot(rootfsPath); err != nil {
-			return err
+		// Wait for parent to write uid_map/gid_map before proceeding
+		syncPipe := os.NewFile(uintptr(3), "sync-pipe")
+		if syncPipe != nil {
+			buf := make([]byte, 1)
+			syncPipe.Read(buf)
+			syncPipe.Close()
 		}
 
-		if err := os.Chdir("/tmp"); err != nil {
-			return err
+		releaseConcurrencyCap()
+		chrootPath := filepath.Join(rootfsPath, "rootfs")
+		if err := syscall.Chroot(chrootPath); err != nil {
+			return fmt.Errorf("chroot %s: %w", chrootPath, err)
+		}
+
+		if err := os.MkdirAll("/proc", 0555); err != nil {
+			return fmt.Errorf("mkdir /proc: %w", err)
+		}
+
+		if err := os.MkdirAll("/dev/pts", 0755); err != nil {
+			return fmt.Errorf("mkdir /dev/pts: %w", err)
 		}
 
 		if err := syscall.Mount("proc", "/proc", "proc", 0, ""); err != nil {
-			return err
+			return fmt.Errorf("mount proc: %w", err)
+		}
+
+		if err := syscall.Mount("devpts", "/dev/pts", "devpts", 0, "newinstance,ptmxmode=0666,mode=0620"); err != nil {
+			return fmt.Errorf("mount devpts: %w", err)
+		}
+		if err := os.Remove("/dev/ptmx"); err != nil {
+			return fmt.Errorf("remove /dev/ptmx: %w", err)
+		}
+		if err := os.Symlink("pts/ptmx", "/dev/ptmx"); err != nil {
+			return fmt.Errorf("symlink /dev/ptmx: %w", err)
+		}
+
+		if err := os.Chdir("/tmp"); err != nil {
+			return fmt.Errorf("chdir /tmp: %w", err)
 		}
 
 		logger.Info("You are now inside the isolated enviornemnt.")
 
-		cmd := exec.Command("/bin/bash")
+		cmd := exec.Command("/bin/bash", "-i")
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
-		err := cmd.Run()
-
-		return err
+		return cmd.Run()
 	}
 
-	// Check concurrency cap before starting child process
 	if err := checkConcurrencyCap(); err != nil {
 		return err
 	}
 
+	master, slave, err := pty.Open()
+	if err != nil {
+		return fmt.Errorf("pty open: %w", err)
+	}
+
+	// Create sync pipe for user namespace handshake
+	pipeReader, pipeWriter, err := os.Pipe()
+	if err != nil {
+		slave.Close()
+		master.Close()
+		return fmt.Errorf("sync pipe: %w", err)
+	}
+
 	cmd := exec.Command("/proc/self/exe")
 	cmd.Args = []string{"init", rootfsPath}
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = slave
+	cmd.Stdout = slave
+	cmd.Stderr = slave
+	cmd.ExtraFiles = []*os.File{pipeReader}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWUSER | syscall.CLONE_NEWNET,
 		Setpgid:    true,
 	}
 
 	if err := cmd.Start(); err != nil {
-		return err
+		pipeWriter.Close()
+		pipeReader.Close()
+		slave.Close()
+		master.Close()
+		return fmt.Errorf("start child: %w", err)
 	}
 
-	// Set up UID/GID mapping after fork but before child execs
+	// Write uid_map/gid_map/setgroups before unblocking child
 	if err := setupUserNamespaceMapping(cmd.Process.Pid); err != nil {
-		logger.Error(fmt.Errorf("failed to setup user namespace mapping: %w", err))
 		cmd.Process.Kill()
-		return err
+		pipeWriter.Close()
+		pipeReader.Close()
+		slave.Close()
+		master.Close()
+		return fmt.Errorf("user namespace mapping: %w", err)
 	}
 
-	// Set up cgroup v2 resource limits
+	// Unblock the child
+	pipeWriter.Write([]byte{0})
+	pipeWriter.Close()
+	pipeReader.Close()
+	slave.Close()
+
 	sessionID := filepath.Base(rootfsPath)
 	if err := setupCgroupV2(sessionID, cmd.Process.Pid); err != nil {
-		logger.Error(fmt.Errorf("failed to setup cgroup v2: %w", err))
-		cmd.Process.Kill()
-		return err
+		logger.Warn(fmt.Sprintf("failed to setup cgroup v2: %v", err))
 	}
 
-	// Start duration timer if set
 	if duration > 0 {
 		go func() {
 			time.Sleep(duration)
-			logger.Warn(fmt.Sprintf("Duration elapsed, terminating session"))
-			// Try SIGTERM first
+			logger.Warn("Duration elapsed, terminating session")
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 			time.Sleep(5 * time.Second)
-			// SIGKILL after grace period
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}()
 	}
 
-	// Setup cleanup on exit
-	cleanupDone := make(chan bool, 1)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGWINCH)
 	go func() {
-		if err := cmd.Wait(); err != nil {
-			logger.Warn(fmt.Sprintf("Session exited with error: %v", err))
+		for range sigCh {
+			_ = pty.InheritSize(os.Stdin, master)
 		}
-		cleanupDone <- true
 	}()
+	pty.InheritSize(os.Stdin, master)
 
-	// Wait for cleanup to complete
-	<-cleanupDone
+	oldState, _ := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TCGETS)
+	if oldState != nil {
+		raw := *oldState
+		raw.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+		raw.Oflag &^= unix.OPOST
+		raw.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+		raw.Cflag &^= unix.CSIZE | unix.PARENB
+		raw.Cflag |= unix.CS8
+		raw.Cc[unix.VMIN] = 1
+		raw.Cc[unix.VTIME] = 0
+		_ = unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, &raw)
+		defer unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, oldState)
+	}
 
-	// Perform cleanup
+	go func() {
+		_, _ = io.Copy(master, os.Stdin)
+	}()
+	_, _ = io.Copy(os.Stdout, master)
+	master.Close()
+
+	cmdErr := cmd.Wait()
+
 	cleanupSession(rootfsPath, sessionID)
 
-	return nil
+	return cmdErr
 }
-
