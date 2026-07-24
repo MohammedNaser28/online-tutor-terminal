@@ -1,5 +1,10 @@
 server/server
 deploy/server
-SERVER_PLAN.md
+deploy/qo
+deploy/qo-init
 qo-opencode/
+qo/qo
+qo/qo-init
+test.enc
 eval-archive.enc
+SERVER_PLAN.md
