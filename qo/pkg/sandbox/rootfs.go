@@ -102,44 +102,22 @@ func releaseConcurrencyCap() {
 	}
 }
 
-// setupUserNamespaceMapping sets up UID/GID mapping for the new user namespace
-func setupUserNamespaceMapping(pid int) error {
-	uidMapPath := fmt.Sprintf("/proc/%d/uid_map", pid)
-	gidMapPath := fmt.Sprintf("/proc/%d/gid_map", pid)
-	setgroupsPath := fmt.Sprintf("/proc/%d/setgroups", pid)
-
-	hostUID := os.Getuid()
-	hostGID := os.Getgid()
-
-	if err := os.WriteFile(setgroupsPath, []byte("deny"), 0644); err != nil {
-		return fmt.Errorf("failed to write setgroups: %w", err)
-	}
-
-	if err := os.WriteFile(uidMapPath, []byte(fmt.Sprintf("0 %d 1", hostUID)), 0644); err != nil {
-		return fmt.Errorf("failed to write uid_map: %w", err)
-	}
-
-	if err := os.WriteFile(gidMapPath, []byte(fmt.Sprintf("0 %d 1", hostGID)), 0644); err != nil {
-		return fmt.Errorf("failed to write gid_map: %w", err)
-	}
-
-	return nil
-}
-
 func setupCgroupV2(sessionID string, pid int) error {
-	cgroupPath := filepath.Join("/sys/fs/cgroup", "qo-sessions", sessionID)
+	parentPath := "/sys/fs/cgroup/qo-sessions"
 
-	parentPath := filepath.Dir(cgroupPath)
 	if err := os.MkdirAll(parentPath, 0755); err != nil {
 		return fmt.Errorf("failed to create parent cgroup: %w", err)
 	}
 	for _, ctrl := range []string{"memory", "pids", "cpu"} {
-		_ = os.WriteFile(filepath.Join(parentPath, "cgroup.subtree_control"),
-			[]byte("+"+ctrl), 0644)
+		if err := os.WriteFile(filepath.Join(parentPath, "cgroup.subtree_control"),
+			[]byte("+"+ctrl), 0644); err != nil {
+			return fmt.Errorf("failed to enable %s controller: %w", ctrl, err)
+		}
 	}
 
+	cgroupPath := filepath.Join(parentPath, sessionID)
 	if err := os.Mkdir(cgroupPath, 0755); err != nil {
-		return fmt.Errorf("failed to create cgroup: %w", err)
+		return fmt.Errorf("failed to create session cgroup: %w", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(cgroupPath, "memory.max"), []byte("536870912"), 0644); err != nil {
@@ -164,10 +142,10 @@ func setupCgroupV2(sessionID string, pid int) error {
 func cleanupSession(rootfsPath string, sessionID string) {
 	rootfsContent := filepath.Join(rootfsPath, "rootfs")
 
-	if err := syscall.Unmount(filepath.Join(rootfsContent, "dev", "pts"), 0); err != nil && !os.IsNotExist(err) {
+	if err := syscall.Unmount(filepath.Join(rootfsContent, "dev", "pts"), 0); err != nil && !os.IsNotExist(err) && err != syscall.EINVAL {
 		logger.Warn(fmt.Sprintf("Failed to unmount devpts: %v", err))
 	}
-	if err := syscall.Unmount(filepath.Join(rootfsContent, "proc"), 0); err != nil && !os.IsNotExist(err) {
+	if err := syscall.Unmount(filepath.Join(rootfsContent, "proc"), 0); err != nil && !os.IsNotExist(err) && err != syscall.EINVAL {
 		logger.Warn(fmt.Sprintf("Failed to unmount /proc: %v", err))
 	}
 
@@ -253,130 +231,75 @@ func ExtractRootfs(rootfsPath string) error {
 				return err
 			}
 			dev := int(unix.Mkdev(uint32(header.Devmajor), uint32(header.Devminor)))
-			if err := syscall.Mknod(destPath, syscall.S_IFCHR|uint32(header.Mode), dev); err != nil {
+			if err := syscall.Mknod(destPath, syscall.S_IFCHR|0666, dev); err != nil {
 				return err
 			}
-}
+		}
 	}
 
-	binDir := filepath.Join(rootfsPath, "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		return err
+	missingApplets := []string{"sleep", "kill", "pkill", "killall", "stat", "passwd", "chpasswd", "adduser", "addgroup", "deluser", "delgroup"}
+	binDir := filepath.Join(rootfsPath, "rootfs", "bin")
+	for _, applet := range missingApplets {
+		target := filepath.Join(binDir, applet)
+		if _, err := os.Lstat(target); os.IsNotExist(err) {
+			_ = os.Symlink("busybox", target)
+		}
 	}
-	applets := []string{"sleep", "kill", "pkill", "killall", "stat", "passwd", "chpasswd", "adduser", "addgroup", "deluser", "delgroup", "clear", "reset", "du", "df", "free", "uptime", "time", "cut", "tr", "od", "base64", "bc", "expr", "factor", "seq"}
-	for _, applet := range applets {
-		linkPath := filepath.Join(binDir, applet)
-		if _, err := os.Stat(linkPath); os.IsNotExist(err) {
-			os.Symlink("busybox", linkPath)
+
+	for _, dev := range []string{"null", "zero", "random", "urandom", "tty", "console"} {
+		path := filepath.Join(rootfsPath, "rootfs", "dev", dev)
+		if pathExists(path) {
+			_ = os.Chmod(path, 0666)
 		}
 	}
 
 	return nil
 }
 
-func StartSandBox(rootfsPath string, duration time.Duration) error {
-
-	if len(os.Args) > 0 && os.Args[0] == "init" {
-		// Wait for parent to write uid_map/gid_map before proceeding
-		syncPipe := os.NewFile(uintptr(3), "sync-pipe")
-		if syncPipe != nil {
-			buf := make([]byte, 1)
-			syncPipe.Read(buf)
-			syncPipe.Close()
-		}
-
-		releaseConcurrencyCap()
-		chrootPath := filepath.Join(rootfsPath, "rootfs")
-		if err := syscall.Chroot(chrootPath); err != nil {
-			return fmt.Errorf("chroot %s: %w", chrootPath, err)
-		}
-
-		if err := os.MkdirAll("/proc", 0555); err != nil {
-			return fmt.Errorf("mkdir /proc: %w", err)
-		}
-
-		if err := os.MkdirAll("/dev/pts", 0755); err != nil {
-			return fmt.Errorf("mkdir /dev/pts: %w", err)
-		}
-
-		if err := syscall.Mount("proc", "/proc", "proc", 0, ""); err != nil {
-			return fmt.Errorf("mount proc: %w", err)
-		}
-
-		if err := syscall.Mount("devpts", "/dev/pts", "devpts", 0, "newinstance,ptmxmode=0666,mode=0620"); err != nil {
-			return fmt.Errorf("mount devpts: %w", err)
-		}
-		if err := os.Remove("/dev/ptmx"); err != nil {
-			return fmt.Errorf("remove /dev/ptmx: %w", err)
-		}
-		if err := os.Symlink("pts/ptmx", "/dev/ptmx"); err != nil {
-			return fmt.Errorf("symlink /dev/ptmx: %w", err)
-		}
-
-		if err := os.Chdir("/tmp"); err != nil {
-			return fmt.Errorf("chdir /tmp: %w", err)
-		}
-
-		logger.Info("You are now inside the isolated enviornemnt.")
-
-		cmd := exec.Command("/bin/bash", "-i")
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		return cmd.Run()
+func findHelper() (string, error) {
+	binaryPath, err := os.Executable()
+	if err != nil {
+		return "", err
 	}
+	candidate := filepath.Join(filepath.Dir(binaryPath), "qo-init")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, nil
+	}
+	return "", fmt.Errorf("qo-init helper not found beside %s", binaryPath)
+}
+
+func StartSandBox(rootfsPath string, duration time.Duration) error {
 
 	if err := checkConcurrencyCap(); err != nil {
 		return err
 	}
+	defer releaseConcurrencyCap()
 
 	master, slave, err := pty.Open()
 	if err != nil {
 		return fmt.Errorf("pty open: %w", err)
 	}
 
-	// Create sync pipe for user namespace handshake
-	pipeReader, pipeWriter, err := os.Pipe()
-	if err != nil {
+	helperPath, helperErr := findHelper()
+	if helperErr != nil {
 		slave.Close()
 		master.Close()
-		return fmt.Errorf("sync pipe: %w", err)
+		return helperErr
 	}
 
-	cmd := exec.Command("/proc/self/exe")
-	cmd.Args = []string{"init", rootfsPath}
+	cmd := exec.Command(helperPath, rootfsPath)
 	cmd.Stdin = slave
 	cmd.Stdout = slave
 	cmd.Stderr = slave
-	cmd.ExtraFiles = []*os.File{pipeReader}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWUSER | syscall.CLONE_NEWNET,
-		Setpgid:    true,
+		Setpgid: true,
 	}
 
 	if err := cmd.Start(); err != nil {
-		pipeWriter.Close()
-		pipeReader.Close()
 		slave.Close()
 		master.Close()
 		return fmt.Errorf("start child: %w", err)
 	}
-
-	// Write uid_map/gid_map/setgroups before unblocking child
-	if err := setupUserNamespaceMapping(cmd.Process.Pid); err != nil {
-		cmd.Process.Kill()
-		pipeWriter.Close()
-		pipeReader.Close()
-		slave.Close()
-		master.Close()
-		return fmt.Errorf("user namespace mapping: %w", err)
-	}
-
-	// Unblock the child
-	pipeWriter.Write([]byte{0})
-	pipeWriter.Close()
-	pipeReader.Close()
 	slave.Close()
 
 	sessionID := filepath.Base(rootfsPath)
