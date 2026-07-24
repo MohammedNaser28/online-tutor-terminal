@@ -89,6 +89,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		"-d", s.config.QoDuration,
 	)
 
+	cmd.Env = append(os.Environ(), "QO_STUDENT_NAME="+session.StudentID)
+
 	master, slave, err := pty.Open()
 	if err != nil {
 		log.Printf("pty open for %s: %v", token, err)
