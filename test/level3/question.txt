@@ -1,0 +1,6 @@
+Level 3 Challenge:
+------------------
+Copy the file "secret.txt" from this folder to your home directory and
+set its permissions so that only you (the owner) can read and write it.
+
+Hint: Use `cp` and `chmod 600`.

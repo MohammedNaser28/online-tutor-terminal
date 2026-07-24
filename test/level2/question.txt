@@ -1,0 +1,5 @@
+Level 2 Challenge:
+------------------
+Create a new user named "studentuser" on the system.
+
+Hint: Use the `useradd` command.

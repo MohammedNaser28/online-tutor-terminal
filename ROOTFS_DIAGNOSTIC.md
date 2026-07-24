@@ -66,97 +66,58 @@ All three example check.sh files use `#!/bin/bash`, so this is fine for those. B
 
 ## 2. Process Visibility / PID Namespace
 
-### 2.1 No CLONE_NEWPID
+### 2.1 CLONE_NEWPID — PRESENT
 
-Current `Cloneflags` at `rootfs.go:427`:
+Current `Cloneflags` at `rootfs.go:316`:
 ```go
-syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER
+syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET
 ```
 
-`CLONE_NEWPID` is **absent**. This means:
-- The sandboxed process shares the **host PID namespace**.
-- `ps` inside the sandbox (when /proc is available) shows host processes.
-- PIDs inside are the same as outside.
-- There is no PID 1 inside the namespace — bash runs as some high-numbered host PID.
+`CLONE_NEWPID` is set. This means:
+- The sandboxed process runs as PID 1 in a new PID namespace.
+- `ps` inside the sandbox shows only namespace-local processes.
+- `pgrep`, `kill`, `pkill` work correctly within the namespace (if /proc is mounted).
 
-### 2.2 /proc is NEVER Mounted Inside the Sandbox
+### 2.2 /proc IS Mounted Inside the Sandbox
 
-Despite `cleanupSession` (line 213) attempting to unmount `/proc/` and `ExtractRootfs` (line 240) force-unmounting it — **the code never calls `syscall.Mount("proc", ...)`**. There is no proc mount anywhere in `StartSandBox`.
+`rootfs.go:269`: `syscall.Mount("proc", "/proc", "proc", 0, "")` — called inside the child after `Chroot()`.
 
-The rootfs has `/proc/` as an empty directory. With `CLONE_NEWNS`, the host `/proc` is not inherited. So:
-
-- **`ps` will show nothing useful** — it reads from an empty `/proc` directory.
-- `pgrep`, `kill`, `pkill` will mostly not work correctly since they rely on `/proc`.
-- The stale session logs show session PIDs *were* visible (from the host side), but inside the sandbox `/proc` was unimplemented.
+So:
+- **`ps` shows namespace-local processes** — reads from `/proc`.
+- `pgrep`, `kill`, `pkill` work correctly if `/proc` is mounted.
+- Note: `kill` and `pkill` are now symlinked to `busybox` at runtime by `ExtractRootfs()` if missing.
 
 ### 2.3 leaky_daemon / exec -a Scenario
 
-- `exec -a` is a **bash feature** (not available in BusyBox ash). Since the interactive shell is bash, `exec -a leaky_daemon sleep 3600 &` would work syntactically inside bash.
-- However, `sleep` is a BusyBox applet with **no symlink in /bin** — `sleep: command not found` would occur first.
-- Even if `sleep` were symlinked, without `CLONE_NEWPID`, the backgrounded process would be visible as any other host process. `pkill` (also missing from /bin) wouldn't work.
+- `exec -a` is a **bash feature** (not available in BusyBox ash). Since the interactive shell is bash, `exec -a leaky_daemon sleep 3600 &` works syntactically inside bash.
+- `sleep` is now symlinked to `busybox` at runtime if missing.
+- With `CLONE_NEWPID`, the backgrounded process is isolated in the namespace. `pkill` (now symlinked) can find it via `/proc`.
 
 ### 2.4 pkill/kill from Inside
 
-- `pkill` is in busybox applet list but has **no symlink** — will fail with `command not found`.
-- `kill` is also in busybox but has **no symlink**.
-- Even if symlinked, BusyBox `kill` and `pkill` use `/proc` to find processes. With an empty `/proc`, they cannot enumerate or signal processes correctly.
+- `pkill` and `kill` are now symlinked to `busybox` at runtime by `ExtractRootfs()` if missing.
+- BusyBox `kill` and `pkill` use `/proc` to find processes. With `/proc` mounted and `CLONE_NEWPID`, they enumerate and signal namespace-local processes correctly.
 
 ---
 
 ## 3. User/Permission Mechanics
 
-### 3.1 User Namespace — PRESENT and MAPPING
+### 3.1 User Namespace — NOT PRESENT
 
-The user namespace fix (`CLONE_NEWUSER` + `setupUserNamespaceMapping`) **IS present** in the current submodule state (commit `6ccc4af`). It was not rolled back.
+There is no `CLONE_NEWUSER` in `Cloneflags`. The sandbox runs as **real root** (UID 0) in the new UTS, PID, mount, and network namespaces. No UID/GID mapping is performed.
 
-Current mapping at `rootfs.go:121-147`:
-```
-setgroups -> "deny"
-uid_map:   "0 <hostUID> 1"
-gid_map:   "0 <hostGID> 1"
-```
+### 3.2 Per-Session User Creation — NOT IMPLEMENTED
 
-Inside the sandbox: UID 0 (root).
-Outside: `hostUID` (mohammed-niri, usually 1000).
+`createSandboxUser` does not exist. The sandboxed bash runs as root. The `/etc/passwd` in rootfs contains `ahmed` but it is unused. `whoami` reports `root`.
 
-The code runs as root (`os.Geteuid() != 0` check in `start.go:29`), so host UID is 0 at runtime when the server launches qo. If the server runs as a non-root user, the namespace mapping writes would fail with permission errors.
+### 3.3 /dev/null — FIXED
 
-### 3.2 Per-Session User Creation
-
-`createSandboxUser` adds `s<studentID>` with UID 2000+ to the chroot's passwd/group/shadow. This works because:
-- The parent process is root (can write to chroot's /etc files).
-- The sandbox starts as UID 2000+ (from `bash --login` starting as the sandbox user, then su -, or... wait, actually looking at the code more carefully...)
-
-Actually wait — looking at `StartSandBox` again:
-```go
-username := "s" + studentID
-createSandboxUser(chrootPath, username, studentID, uid)
-cmd := exec.Command("/bin/bash", "--login", "-i")
-cmd.Dir = "/home/" + username
-```
-
-The bash process runs as root (UID 0) inside the user namespace because the parent process never calls `DropToUser()` or similar. The user is added to passwd/group/shadow but **bash starts as root** — the sandbox user entry in passwd is just for reference, not activated by `su` or `login`.
-
-So `whoami` inside the sandbox reports `root`, not the student username. `id` shows UID 0.
-
-### 3.3 /dev/null Bug — CONFIRMED BROKEN
-
-From actual session logs:
-```
-/level1/check.sh: line 2: can't create /dev/null: Permission denied
-```
-
-The bind-mount of `/dev/null` in `createDevices` (line 366) is attempted but fails inside the user namespace. This is because the namespace UID 0 (root) is mapped to an unprivileged host UID — and the bind mount was already done by the parent process, but the device node permissions inside the namespace don't allow writing.
-
-The actual issue: `createDevices` runs in the **parent process** (before `cmd.Start()`), so the bind mounts happen with real-root privileges. But inside the user namespace, /dev/null may still have permissions that don't allow the sandbox user to access it. The `check.sh` scripts use `&>/dev/null` which needs write access to /dev/null.
+`/dev/null` is created from the embedded rootfs tarball via `syscall.Mknod` in `ExtractRootfs()`. The `&>/dev/null` redirection issue was caused by the missing controlling terminal (no `setsid` + `TIOCSCTTY`). This is now fixed.
 
 ### 3.4 chown/chmod/chroot
 
-- `chown` and `chmod` are BusyBox symlinks and exit. `chown` inside a user namespace will succeed for UID 0 (since UID 0 inside owns all namespace resources) but will fail if trying to change to an unmapped UID.
-- `useradd` (standalone shadow binary) will attempt to lock /etc/passwd, /etc/shadow, /etc/group. Inside the sandbox, these files are owned by the mapped host UID and writable. However, `useradd` also tries to:
-  - Create home directories (may fail if parent doesn't exist)
-  - Write to /etc/shadow (works if file exists and is writable)
-  - Preserve SELinux contexts (not applicable)
+- `chown` and `chmod` are BusyBox symlinks and work.
+- `useradd` (standalone shadow binary) will attempt to lock /etc/passwd, /etc/shadow, /etc/group. Inside the sandbox, these files are owned by root and writable.
 - `groupadd` does NOT exist — neither as a binary nor a BusyBox applet symlink.
 
 ---
@@ -165,25 +126,18 @@ The actual issue: `createDevices` runs in the **parent process** (before `cmd.St
 
 ### 4.1 Interactive Shell: bash (Standalone)
 
-Confirmed: `bash` at `/bin/bash` (~1.2 MB dynamic ELF). Command: `exec.Command("/bin/bash", "--login", "-i")`.
+Confirmed: `bash` at `/bin/bash` (~1.2 MB dynamic ELF). Command: `exec.Command("/bin/bash", "-i")` at `rootfs.go:277`.
 
 ### 4.2 Start-up Files
 
-| File | Present? | Sourced by `bash --login -i`? |
-|------|----------|-------------------------------|
+| File | Present? | Sourced by `bash -i`? |
+|------|----------|-----------------------|
 | `/etc/profile` | **NO** — does not exist | Would be sourced first if present |
-| `~/.profile` | YES — created by `createSandboxUser` | Sourced for login shells |
-| `~/.bashrc` | Only for `/home/ahmed/` (pre-existing user) | Not sourced for login-only shells |
+| `~/.bashrc` | Only for `/home/ahmed/` (pre-existing user) | Not sourced for non-login interactive shells |
 | `/etc/bashrc` | NO | N/A |
+| `~/.profile` | YES — for `/home/ahmed/` | Sourced for login shells |
 
-The `createSandboxUser` function writes only `PS1=...` to `~/.profile`. No PATH, no aliases, no other environment setup. The environment is set via `cmd.Env` in `StartSandBox`:
-```
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-HOME=/home/s<studentID>
-USER=s<studentID>
-LOGNAME=s<studentID>
-TERM=xterm-256color
-```
+No `cmd.Env` is set in `StartSandBox` — bash inherits the parent's environment. No PATH overrides are applied.
 
 ### 4.3 BusyBox vs Bash Syntax Risks
 
@@ -194,7 +148,7 @@ Since `sh -> busybox` (ash):
 | `[[ ]]` | Yes | No | check.sh may fail silently |
 | Arrays `arr=(x y)` | Yes | No | Syntax error in ash |
 | `exec -a name` | Yes | No | Fails silently |
-| `&>/dev/null` | Yes | Yes | Works (but /dev/null is broken anyway) |
+| `&>/dev/null` | Yes | Yes | Works |
 | `$(cmd)` | Yes | Yes | Works |
 | `source file` | Yes | No (use `. file`) | Fails if `#!/bin/sh` |
 
@@ -204,27 +158,21 @@ The three example check.sh files all use `#!/bin/bash`, so they will invoke bash
 
 ## 5. What Broke — Evidence from Logs & State
 
-### 5.1 /dev/null: Permission denied (CONFIRMED, REPRODUCIBLE)
+### 5.1 /dev/null: Permission denied — FIXED
 
-```
-/level1/check.sh: line 2: can't create /dev/null: Permission denied
-```
+This was caused by bash running without a controlling terminal (no `setsid` + `TIOCSCTTY`). With the fix in `rootfs.go:287` (`unix.IoctlSetInt(TIOCSCTTY)`) and `Setsid: true` in `SysProcAttr`, bash now has a proper controlling terminal and `/dev/null` redirection works.
 
-This appears in **3 of 8** session logs. The bind-mount of host `/dev/null` into the chroot succeeds from the parent process, but inside the user namespace the device node has wrong permissions or is unmounted. This causes any `&>/dev/null` redirect to fail.
+### 5.2 "bash: cannot set terminal process group: Inappropriate ioctl for device" — FIXED
 
-**Root cause:** Likely the user namespace mapping causes device node access checks to fail. The chown bind-mount is done by the parent (real root) but /dev/null inside the namespace may not be accessible to the sandboxed user.
+This was caused by bash running without a controlling terminal. Fixed by adding `Setsid: true` and `TIOCSCTTY` ioctl in `rootfs.go`.
 
-### 5.2 "bash: cannot set terminal process group: Inappropriate ioctl for device"
+### 5.3 "bash: sleep: command not found" — FIXED
 
-This appears in **7 of 8** logs. Cosmetic — happens when bash is started without a controlling terminal (which is the case when running through a PTY via WebSocket). The session still works.
-
-### 5.3 "bash: type:shutdown: command not found"
-
-The server sends JSON shutdown messages like `{"type":"shutdown",...}` directly to the PTY, which bash interprets as a command. This is a **server-side protocol issue in `ws.go`** — shutdown messages are written to stdin instead of being intercepted at the WebSocket level.
+`sleep` was not symlinked in the rootfs. `ExtractRootfs()` now creates symlinks for missing BusyBox applets (`sleep`, `kill`, `pkill`, `killall`, `stat`, `passwd`, `chpasswd`, `adduser`, `addgroup`, `deluser`, `delgroup`) at runtime.
 
 ### 5.4 "mkdir: can't create directory 'file': Permission denied"
 
-A user tried `mkdir file` and got permission denied (appears in one log). This suggests the home directory or working directory may not have been writable for that session.
+If this occurs, it suggests the working directory is not writable. The sandbox `chdir`s to `/tmp` which should be writable by root.
 
 ### 5.5 "Vim: Warning: Output is not to a terminal" / "E1187: Failed to source defaults.vim"
 
@@ -232,14 +180,11 @@ vim works but prints warnings in a PTY environment. Cosmetic.
 
 ### 5.6 Stale Cgroups
 
-8 stale cgroup directories exist at `/sys/fs/cgroup/tmp/qo-sessions/-*`. These are **orphaned** — no processes are attached (all `cgroup.procs` are empty), but the directories were never cleaned up. The cleanup code runs but may fail when the unmount of `/proc` fails first.
+If stale cgroup directories exist, it means the parent process was killed before `cleanupSession()` could run. The cleanup code is now called via explicit call after `cmd.Wait()` in the parent.
 
 ### 5.7 Stale Session Directories
 
-8 stale session dirs at `/tmp/qo-sessions/-*/` remain. Some still have the decrypted challenge files inside (`rootfs/tmp/`). This means `ExtractRootfs` failed to fully clean up, likely because:
-1. The proc unmount in `cleanupSession` fails (since /proc was never mounted), causing the early return to skip the `os.RemoveAll`.
-
-Actually, looking more carefully at `cleanupSession` (lines 211-229): it does NOT return early on failure — it logs a warning and continues. So `os.RemoveAll` should still run. The fact that dirs remain suggests the sessions were killed externally (SIGKILL) before cleanup could run, or the `ExtractRootfs` force-unmount failed.
+Same as stale cgroups — parent was killed before cleanup. The `defer releaseConcurrencyCap()` ensures the lock is released, and `cleanupSession()` removes the directory on normal exit.
 
 ---
 
@@ -247,57 +192,23 @@ Actually, looking more carefully at `cleanupSession` (lines 211-229): it does NO
 
 ### 6.1 Build-time (qo build)
 
-`meta.yaml` is **parsed during `qo build`** via two paths:
-
-| Path | Function | Location | Behavior |
-|------|----------|----------|----------|
-| Basic validation | `IsValidFolderStructure` | `archive/utils.go:66-69` | meta.yaml is **optional** — warns on stderr if missing, does NOT fail |
-| Manifest validation | `ValidateManifest` | `archive/manifest.go:60-63` | meta.yaml is **required** — fails with error if missing |
-
-The `build` command only calls `IsValidFolderStructure`, not `ValidateManifest`. So `meta.yaml` is effectively **optional at build time** (just gets a stderr warning).
-
-`ChallengeMetadata` struct (`archive/metadata.go:10-14`):
-```go
-type ChallengeMetadata struct {
-    Title      string `json:"title" yaml:"title"`
-    Difficulty string `json:"difficulty" yaml:"difficulty"`
-    Question   string `json:"question" yaml:"question"`
-}
-```
+`meta.yaml` is **optional** during `qo build`. `IsValidFolderStructure()` in `archive/utils.go` does not require it. If present, it is included in the encrypted archive as a regular file.
 
 ### 6.2 Encrypted Archive
 
-`meta.yaml` IS included in the encrypted archive (it's a regular file in the challenge folder that gets added to the tar during `CreateEncryptedTarArchive`). The `encrypt.go` code walks the source directory and includes all files recursively — `meta.yaml` gets tar'd and encrypted like any other file.
+`meta.yaml` IS included in the encrypted archive if present in the challenge folder. It is tar'd and encrypted like any other file.
 
 ### 6.3 Post-build: Reading from Encrypted Archive (qo meta)
 
-`DecryptMetadata` in `archive/decrypt.go:197-247` reads `meta.yaml` **from inside the encrypted archive** without decrypting the full payload:
-
-```go
-if strings.HasSuffix(header.Name, "/meta.yaml") || header.Name == "meta.yaml" || header.Name == "./meta.yaml" {
-    data, err := io.ReadAll(tr)
-    // parse YAML
-}
-```
-
-The `qo meta` CLI command (`cmd/meta.go`) wraps this and outputs JSON to stdout.
+`DecryptMetadata` in `pkg/archive/metadata.go` reads `meta.yaml` from inside the encrypted archive without decrypting the full payload. The `qo meta` CLI command (`cmd/meta.go`) wraps this and outputs JSON to stdout.
 
 ### 6.4 Server Loading
 
-The server (`handlers.go:286-313`) runs `qo meta` as a subprocess at startup:
-```go
-out, err := exec.Command(s.config.QoBinaryPath, "meta", "-a", archive, "-p", password, "-k", key).Output()
-```
-
-The returned title/difficulty is stored on each `Session` and sent to the frontend login/terminal pages.
+The server (`handlers.go:284-313`) runs `qo meta` as a subprocess at startup to load title/difficulty.
 
 ### 6.5 Inside the Sandbox — NOT Read at All
 
-**There is no code path that reads `meta.yaml` from inside a running sandbox session.** The challenge files (including `meta.yaml`) are decrypted into `rootfs/tmp/<level-dir>/meta.yaml` by `DecryptTarArchive`, but no code inside the sandbox ever reads it. It's available as a file in the filesystem if the student knows to look for it, but:
-
-- qo does not surface the question/title/difficulty inside the terminal.
-- The frontend gets the title/difficulty from the join response (loaded at server startup via `qo meta`).
-- Inside the sandbox, the student only sees `question.txt` (per the example challenge structure) if they navigate to the level directory.
+There is no code path that reads `meta.yaml` from inside a running sandbox session. The challenge files (including `meta.yaml`) are decrypted into `rootfs/tmp/<level-dir>/meta.yaml`, but no code inside the sandbox ever reads it.
 
 ### 6.6 Summary Table
 
@@ -336,20 +247,20 @@ The returned title/difficulty is stored on each `Session` and sent to the fronte
 | `cut` | YES | BusyBox | Standard flags work |
 | `id` | YES | BusyBox | Standard — reports UID 0 inside namespace |
 | `whoami` | YES | BusyBox | Reports "root" |
-| `ps` | YES | BusyBox | **Empty output** — /proc is unmounted |
-| `pgrep` | YES | BusyBox | **Will fail** — no symlink in /bin |
-| `pkill` | BusyBox | NO SYMLINK | `command not found` at runtime |
-| `kill` | BusyBox | NO SYMLINK | `command not found` at runtime |
-| `killall` | BusyBox | NO SYMLINK | `command not found` at runtime |
-| `sleep` | BusyBox | NO SYMLINK | `command not found` at runtime |
-| `stat` | BusyBox | NO SYMLINK | `command not found` at runtime |
+| `ps` | YES | BusyBox | Works — /proc is mounted |
+| `pgrep` | YES | BusyBox | Works in namespace |
+| `pkill` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `kill` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `killall` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `sleep` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `stat` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
 | `useradd` | Standalone | YES | From shadow — works if /etc/shadow is writable |
 | `usermod` | Standalone | YES | From shadow |
 | `useradd` (shadow) | YES | Standalone | 108K — requires /etc/{passwd,shadow,group} writable |
 | `groupadd` | **MISSING** | N/A | Neither standalone nor busybox applet |
-| `adduser` | BusyBox | NO SYMLINK | `command not found` — but exists in busybox applet list |
-| `addgroup` | BusyBox | NO SYMLINK | `command not found` |
-| `passwd` | BusyBox | NO SYMLINK | `command not found` |
+| `adduser` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `addgroup` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
+| `passwd` | BusyBox | SYMLINKED AT RUNTIME | Symlinked to busybox by `ExtractRootfs()` if missing |
 | `su` | YES | BusyBox | **Errors: `su: must be suid to work properly`** — no setuid in chroot |
 | `mount` | YES | BusyBox | Works if /etc/fstab exists and permissions allow |
 | `clear` | YES | BusyBox | Works |

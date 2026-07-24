@@ -1,0 +1,5 @@
+Level 1 Challenge:
+------------------
+Create a directory called "testdir" in your current working directory.
+
+Hint: Use the `mkdir` command.
