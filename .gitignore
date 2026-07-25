@@ -9,4 +9,6 @@ test.enc
 eval-archive.enc
 SERVER_PLAN.md
 .kilo/
-.kilo/
+plans/
+server/qo-init
+server/server-test
