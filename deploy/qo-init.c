@@ -217,6 +217,11 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "\n");
             fprintf(bashrc, "__qo_challenge() {\n");
             fprintf(bashrc, "    local action=\"$1\"\n");
+            fprintf(bashrc, "    if [ \"$action\" = \"go\" ]; then\n");
+            fprintf(bashrc, "        local ans\n");
+            fprintf(bashrc, "        read -p \"Your answer: \" ans\n");
+            fprintf(bashrc, "        action=\"go:${ans}\"\n");
+            fprintf(bashrc, "    fi\n");
             fprintf(bashrc, "    local req=\"/tmp/.qo-challenge-req\"\n");
             fprintf(bashrc, "    local resp=\"/tmp/.qo-challenge-resp\"\n");
             fprintf(bashrc, "    local tmpReq=\"/tmp/.qo-challenge-req.tmp\"\n");
@@ -240,6 +245,9 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "alias go='__qo_challenge go'\n");
             fprintf(bashrc, "alias map='__qo_challenge map'\n");
             fprintf(bashrc, "alias status='__qo_challenge status'\n");
+            fprintf(bashrc, "alias logo='__qo_challenge logo'\n");
+            fprintf(bashrc, "alias help='__qo_challenge help'\n");
+            fprintf(bashrc, "alias clear='printf \"\\033[2J\\033[H\"'\n");
             fclose(bashrc);
         }
 

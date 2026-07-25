@@ -395,10 +395,8 @@ function connect() {
       firstConnect = false;
     }
 
-    if (!logoPrinted && logoText) {
-      var lines = logoText.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n');
-      lines.forEach(function (line) { term.writeln(line); });
-      logoPrinted = true;
+    if (!logoPrinted) {
+      printLogo();
     }
 
     term.focus();
@@ -421,7 +419,12 @@ function connect() {
     } catch (e) {
       // not JSON — terminal output
     }
-    term.write(event.data);
+    var data = event.data;
+    if (typeof data === 'string' && (data.indexOf('\u001b[2J') !== -1 || data.indexOf('\u001b[H\u001b[2J') !== -1 || data.indexOf('\u001bc') !== -1)) {
+      logoPrinted = false;
+    }
+    term.write(data);
+    if (!logoPrinted && logoText) { printLogo(); }
   };
 
   ws.onclose = function () {
@@ -489,9 +492,30 @@ if (token) {
   var logoText = '';
   var logoPrinted = false;
 
+  function printLogo() {
+    if (!logoText || logoPrinted) return;
+    var lines = logoText.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n');
+    var logoWidth = 43;
+    lines.forEach(function (line) {
+      var visual = line.replace(/\x1b\[[0-9;]*m/g, '');
+      if (term.cols > logoWidth) {
+        var pad = Math.floor((term.cols - logoWidth) / 2);
+        term.write(' '.repeat(pad) + line + '\r\n');
+      } else {
+        term.writeln(line);
+      }
+    });
+    logoPrinted = true;
+  }
+
   fetch('/static/logo.txt')
     .then(function (r) { if (r.ok) return r.text(); throw new Error('not found'); })
-    .then(function (text) { logoText = text; })
+    .then(function (text) {
+      logoText = text;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        printLogo();
+      }
+    })
     .catch(function () {});
 
   var ws = null;

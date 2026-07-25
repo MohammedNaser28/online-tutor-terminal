@@ -12,3 +12,4 @@ SERVER_PLAN.md
 plans/
 server/qo-init
 server/server-test
+qo/pkg/sandbox/logo.txt

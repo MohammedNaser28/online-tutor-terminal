@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -74,13 +76,95 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Process is dead — clean up old Term so we fall through
-		// to spawn a fresh qo below.
 		log.Printf("session %s process is dead, reinitializing", token)
-		session.Term.Close()
-		session.Term = nil
+		if session.Term != nil {
+			session.Term.Close()
+			session.Term = nil
+		}
 		session.Cmd = nil
 	}
+
+	// If the session has an existing rootfs that's still on disk, restart
+	// qo-init inside it (preserves progress and ChallengeState).
+	rootfsExists := session.RootfsPath != ""
+	if rootfsExists {
+		if _, err := os.Stat(session.RootfsPath); err != nil {
+			rootfsExists = false
+		}
+	}
+
+	if rootfsExists {
+		session.mu.Unlock()
+
+		master, slave, err := pty.Open()
+		if err != nil {
+			log.Printf("pty open for %s: %v", token, err)
+			http.Error(w, "failed to start session", http.StatusInternalServerError)
+			return
+		}
+		defer slave.Close()
+
+		if err := pty.Setsize(master, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+			master.Close()
+			log.Printf("pty setsize for %s: %v", token, err)
+			http.Error(w, "failed to start session", http.StatusInternalServerError)
+			return
+		}
+
+		qoInit := findQoInit(s.config.QoBinaryPath)
+		if qoInit == "" {
+			master.Close()
+			log.Printf("qo-init not found for %s", token)
+			http.Error(w, "qo-init not found", http.StatusInternalServerError)
+			return
+		}
+
+		cmd := exec.Command(qoInit, session.RootfsPath)
+		cmd.Stdin = slave
+		cmd.Stdout = slave
+		cmd.Stderr = slave
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+
+		if err := cmd.Start(); err != nil {
+			master.Close()
+			log.Printf("qo-init spawn for %s: %v", token, err)
+			http.Error(w, "failed to start session", http.StatusInternalServerError)
+			return
+		}
+
+		session.mu.Lock()
+		session.Cmd = cmd
+		session.Term = master
+		session.SetState(SessionActive)
+		session.mu.Unlock()
+
+		// Don't restart pollChallengeRequests or discoverAndInitChallenge —
+		// they're still running from the first connection with the correct
+		// RootfsPath and ChallengeState.
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("ws upgrade (reconnect %s): %v", token, err)
+			s.cleanupSession(token)
+			return
+		}
+
+		log.Printf("session %s reconnected, reusing rootfs %s", token, session.RootfsPath)
+		pipeTermToWS(s, conn, master, session)
+		return
+	}
+
+	session.mu.Unlock()
+
+	// Generate a unique session path for this user. This avoids the race
+	// where discoverAndInitChallenge picks another user's rootfs directory.
+	suffix := fmt.Sprintf("%04x", rand.Int31())
+	sessionRootfs := filepath.Join("/tmp/qo-sessions", fmt.Sprintf("%s-%s", session.StudentID, suffix))
+
+	session.mu.Lock()
+	session.RootfsPath = sessionRootfs
 	session.mu.Unlock()
 
 	cmd := exec.Command(s.config.QoBinaryPath, "start",
@@ -91,7 +175,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		"-d", s.config.QoDuration,
 	)
 
-	cmd.Env = append(os.Environ(), "QO_STUDENT_NAME="+session.StudentID)
+	cmd.Env = append(os.Environ(),
+		"QO_STUDENT_NAME="+session.StudentID,
+		"QO_SESSION_PATH="+sessionRootfs,
+	)
 
 	master, slave, err := pty.Open()
 	if err != nil {
@@ -129,7 +216,23 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	session.SetState(SessionActive)
 	session.mu.Unlock()
 
-	go s.discoverAndInitChallenge(session)
+	// Load challenge metadata synchronously so pollChallengeRequests
+	// always sees a ready Challenge state. This runs `qo meta` (~1s).
+	if s.config.ArchivePath != "" {
+		meta, err := LoadChallengeMeta(s.config.QoBinaryPath, s.config.ArchivePath, s.config.Password, s.config.Key)
+		if err != nil {
+			log.Printf("load meta for %s: %v", token, err)
+		} else {
+			session.mu.Lock()
+			if len(meta.Levels) > 0 {
+				session.Title = meta.Title
+				session.Difficulty = meta.Difficulty
+				session.Challenge = NewChallengeState(meta.Levels)
+			}
+			session.mu.Unlock()
+		}
+	}
+
 	go s.pollChallengeRequests(session)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -241,29 +344,28 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		}
 	}()
 
+	// Wait for one goroutine to finish (usually the WebSocket reader on disconnect).
+	// Then close the PTY master to unblock the PTY reader, so pipeTermToWS can exit.
 	<-done
+
+	// Close the PTY master to unblock the PTY reader goroutine.
+	// This is safe: the process inside the sandbox (qo-init/bash) still has the slave
+	// end open, but the master being closed means they'll get EIO on next read/write
+	// and eventually exit. We accept this — the term is replaced on reconnect.
+	term.Close()
+
+	// Now wait for the PTY reader to finish
 	<-done
 
 	conn.Close()
 
 	session.mu.Lock()
+	session.Term = nil
+	session.Cmd = nil
+
 	if session.State() == SessionActive {
 		log.Printf("session %s disconnected, entering orphaned state", token)
 		session.SetState(SessionOrphaned)
-	}
-
-	// Check if the underlying process is still alive. If the PTY slave
-	// was closed (qo exited), the master will return EIO on next read.
-	// We close the Term so the next reconnect spawns a fresh qo.
-	if session.Cmd != nil && session.Cmd.Process != nil {
-		if err := session.Cmd.Process.Signal(syscall.Signal(0)); err != nil {
-			log.Printf("session %s process exited, cleaning up PTY", token)
-			if session.Term != nil {
-				session.Term.Close()
-				session.Term = nil
-			}
-			session.Cmd = nil
-		}
 	}
 	session.mu.Unlock()
 
@@ -284,9 +386,33 @@ func (s *Server) cleanupSession(token string) {
 		return
 	}
 
+	rootfs := session.RootfsPath
 	session.Close()
 	s.manager.RemoveSession(token)
+
+	if rootfs != "" {
+		if err := os.RemoveAll(rootfs); err != nil {
+			log.Printf("cleanup: remove rootfs %s: %v", rootfs, err)
+		}
+	}
 	log.Printf("session %s cleaned up", token)
+}
+
+// findQoInit locates the qo-init binary using the same search order as
+// the sandbox package's findHelper().
+func findQoInit(qoBinaryPath string) string {
+	candidates := []string{
+		filepath.Join(filepath.Dir(qoBinaryPath), "qo-init"),
+		"/home/mohammed-niri/projects/qo-learn-tool/qo/qo-init",
+		filepath.Join("/home/mohammed-niri/projects/qo-learn-tool", "qo", "qo-init"),
+		"/usr/local/bin/qo-init",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
 }
 
 func (s *Server) discoverAndInitChallenge(session *Session) {
@@ -297,20 +423,53 @@ func (s *Server) discoverAndInitChallenge(session *Session) {
 	for i := 0; i < 200; i++ {
 		entries, err := os.ReadDir(sessionsDir)
 		if err == nil {
+			var bestPath string
+			var bestTime time.Time
 			for _, e := range entries {
 				if !e.IsDir() {
 					continue
 				}
-				name := e.Name()
-				if !strings.HasPrefix(name, prefix) {
+				if !strings.HasPrefix(e.Name(), prefix) {
 					continue
 				}
-				rootfs := filepath.Join(sessionsDir, name)
-			session.mu.Lock()
-			session.RootfsPath = rootfs
-			s.initChallengeForSession(session)
-			session.mu.Unlock()
-			return
+				info, err := e.Info()
+				if err != nil {
+					continue
+				}
+				mt := info.ModTime()
+				if bestPath == "" || mt.After(bestTime) {
+					bestPath = filepath.Join(sessionsDir, e.Name())
+					bestTime = mt
+				}
+			}
+			if bestPath != "" {
+				session.mu.Lock()
+				session.RootfsPath = bestPath
+				session.mu.Unlock()
+
+				if s.config.ArchivePath == "" {
+					return
+				}
+				meta, err := LoadChallengeMeta(s.config.QoBinaryPath, s.config.ArchivePath, s.config.Password, s.config.Key)
+				if err != nil {
+					log.Printf("discover: LoadChallengeMeta: %v", err)
+					return
+				}
+				session.mu.Lock()
+				if len(meta.Levels) > 0 {
+					session.Title = meta.Title
+					session.Difficulty = meta.Difficulty
+					session.Challenge = NewChallengeState(meta.Levels)
+				} else {
+					levels, discErr := DiscoverLevelsFromRootfs(bestPath)
+					if discErr == nil && len(levels) > 0 {
+						session.Challenge = NewChallengeState(levels)
+					} else {
+						log.Printf("discover: no levels found via meta or rootfs for %s", session.Token)
+					}
+				}
+				session.mu.Unlock()
+				return
 			}
 		}
 		time.Sleep(100 * time.Millisecond)

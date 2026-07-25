@@ -126,14 +126,16 @@ func normalizeMeta(meta *ChallengeMetadata) {
 	}
 }
 
-func RunCheckScript(rootfsPath string, levelID int) (bool, error) {
+func RunCheckScript(rootfsPath string, levelID int, stdinInput string) (bool, error) {
 	scriptPath := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", levelID), "check.sh")
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		return false, nil
 	}
 	cmd := exec.Command("/bin/bash", scriptPath)
 	cmd.Dir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", levelID))
-	cmd.Stdin = nil
+	if stdinInput != "" {
+		cmd.Stdin = strings.NewReader(stdinInput + "\n")
+	}
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
@@ -192,6 +194,16 @@ func (s *Server) pollChallengeRequests(session *Session) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("panic in pollChallengeRequests for %s: %v", session.Token, r)
+			if session.RootfsPath != "" {
+				_ = os.WriteFile(
+					filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-challenge-resp"),
+					[]byte(fmt.Sprintf("\033[31m❌ Internal error, restarting handler...\033[0m\n")),
+					0644,
+				)
+			}
+			// Restart after a short delay so transient panics don't kill the handler permanently.
+			time.Sleep(1 * time.Second)
+			go s.pollChallengeRequests(session)
 		}
 	}()
 
@@ -202,39 +214,49 @@ func (s *Server) pollChallengeRequests(session *Session) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if session.RootfsPath == "" {
+		log.Printf("pollChallengeRequests session=%s no RootfsPath after 120s, exiting", session.Token)
 		return
 	}
 
 	reqFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-challenge-req")
 	respFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-challenge-resp")
 
+	log.Printf("pollChallengeRequests session=%s started rootfs=%s", session.Token, session.RootfsPath)
+
+	lastAction := ""
+
 	for {
 		data, err := os.ReadFile(reqFile)
 		if err != nil {
+			time.Sleep(50 * time.Millisecond)
 			continue
 		}
-
-		_ = os.WriteFile(reqFile, []byte{}, 0644)
 
 		action := strings.TrimSpace(string(data))
-		if action == "" {
+		if action == "" || action == lastAction {
+			time.Sleep(50 * time.Millisecond)
 			continue
 		}
+
+		lastAction = action
+
 		log.Printf("challenge req session=%s action=%q", session.Token, action)
 		var resp []byte
+		goAnswer := ""
+		if strings.HasPrefix(action, "go:") {
+			goAnswer = action[3:]
+			action = "go"
+		}
 
 		switch action {
 		case "quest":
 			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 				current := session.Challenge.Current()
-				resp, _ = json.Marshal(map[string]any{
-					"story":    session.Title,
-					"question": current.Question,
-					"level":    session.Challenge.CurrentLevel + 1,
-					"total":    session.Challenge.Total(),
-				})
+				resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
+					session.Challenge.CurrentLevel+1, session.Challenge.Total(),
+					session.Title, current.Question))
 			} else {
-				resp, _ = json.Marshal(map[string]string{"question": "No challenge loaded."})
+				resp = []byte("\033[33mNo challenge loaded.\033[0m")
 			}
 		case "hint":
 			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
@@ -243,59 +265,55 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				if hint == "" {
 					hint = "No hint available."
 				}
-				resp, _ = json.Marshal(map[string]string{"hint": hint})
+				resp = []byte(fmt.Sprintf("\033[33m💡 Hint: %s\033[0m", hint))
 			} else {
-				resp, _ = json.Marshal(map[string]string{"hint": "No hint available."})
+				resp = []byte("\033[33mNo hint available.\033[0m")
 			}
 		case "go":
 			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1)
+				passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer)
 				if err != nil {
-					resp, _ = json.Marshal(map[string]any{"passed": false, "message": "Check failed: " + err.Error(), "completed": session.Challenge.Completed})
+					resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
 				} else if passed {
+					session.IncrementScore()
 					advanced := session.Challenge.Advance()
-					msg := "Correct!"
 					if advanced {
-						msg = fmt.Sprintf("Correct! Advancing to level %d...", session.Challenge.CurrentLevel+1)
+						resp = []byte(fmt.Sprintf("\033[32m✅ Correct! Advancing to level %d...\033[0m", session.Challenge.CurrentLevel+1))
 					} else {
-						msg = "Correct! You completed all levels!"
+						resp = []byte(fmt.Sprintf("\033[32m🎉 Correct! You completed all levels!\033[0m"))
 					}
-					resp, _ = json.Marshal(map[string]any{
-						"passed":    true,
-						"message":   msg,
-						"completed": session.Challenge.Completed,
-						"next": map[string]any{
-							"level":    session.Challenge.CurrentLevel + 1,
-							"total":    session.Challenge.Total(),
-							"title":    session.Challenge.Current().Title,
-							"question": session.Challenge.Current().Question,
-							"hint":     session.Challenge.Current().Hint,
-						},
-					})
 				} else {
-					resp, _ = json.Marshal(map[string]any{"passed": false, "message": "Not quite right. Try again!", "completed": session.Challenge.Completed})
+					resp = []byte("\033[31m❌ Not quite right. Try again!\033[0m")
 				}
 			} else {
-				resp, _ = json.Marshal(map[string]any{"passed": false, "message": "No challenge loaded.", "completed": session.Challenge.Completed})
+				resp = []byte("\033[33mNo challenge loaded.\033[0m")
 			}
 		case "map":
-			if session.Challenge != nil {
-				resp, _ = json.Marshal(session.Challenge.Status())
+			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+				st := session.Challenge.Status()
+				resp = []byte(fmt.Sprintf("\033[96m━━━ Map %d/%d\033[0m  %s",
+					st["current_level"].(int)+1, st["total_levels"].(int),
+					st["current_title"].(string)))
 			} else {
-				resp, _ = json.Marshal(map[string]any{"levels": []any{}})
+				resp = []byte("\033[33mNo challenge loaded.\033[0m")
 			}
 		case "status":
 			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 				current := session.Challenge.Current()
-				resp, _ = json.Marshal(map[string]any{
-					"level":     session.Challenge.CurrentLevel + 1,
-					"total":     session.Challenge.Total(),
-					"title":     current.Title,
-					"completed": session.Challenge.Completed,
-				})
+				status := "\033[33mIn progress\033[0m"
+				if session.Challenge.Completed {
+					status = "\033[32m✅ Completed\033[0m"
+				}
+				resp = []byte(fmt.Sprintf("\033[96mLevel %d/%d\033[0m  %s  %s",
+					session.Challenge.CurrentLevel+1, session.Challenge.Total(),
+					current.Title, status))
 			} else {
-				resp, _ = json.Marshal(map[string]string{"status": "No challenge loaded."})
+				resp = []byte("\033[33mNo challenge loaded.\033[0m")
 			}
+		case "logo":
+			resp = []byte("\033[36mQO Logo\033[0m")
+		case "help":
+			resp = []byte("\033[1mCommands: quest, hint, go, map, status, logo, help\033[0m")
 		default:
 			resp, _ = json.Marshal(map[string]string{"error": "unknown action: " + action})
 		}

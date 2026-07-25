@@ -67,7 +67,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "POST /admin/shutdown":
 			if s.adminAuth(w, r) { s.handleAdminShutdown(w, r) }
 		case "GET /admin/leaderboard":
-			if s.adminAuth(w, r) { s.handleLeaderboardPage(w, r) }
+			s.handleLeaderboardPage(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -81,6 +81,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleJoin(w, r)
 	case "GET /terminal":
 		s.handleTerminal(w, r)
+	case "GET /leaderboard":
+		s.handleLeaderboardPage(w, r)
 	case "GET /ws":
 		s.handleWebSocket(w, r)
 	case "GET /api/leaderboard":
@@ -416,7 +418,7 @@ func (s *Server) handleChallengeGo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1)
+	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, "")
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Check failed: " + err.Error(), "completed": session.Challenge.Completed})
 		return
