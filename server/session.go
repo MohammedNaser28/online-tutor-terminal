@@ -36,19 +36,21 @@ func (s SessionState) String() string {
 }
 
 type Session struct {
-	Token      string
-	StudentID  string
-	Title      string
-	Difficulty string
-	CreatedAt  time.Time
+	Token       string
+	StudentID   string
+	Title       string
+	Difficulty  string
+	RootfsPath  string
+	CreatedAt   time.Time
 
 	state      atomic.Int64
 	lastActive atomic.Int64
 	score      atomic.Int64
 
-	mu   sync.Mutex
-	Cmd  *exec.Cmd
-	Term *os.File
+	mu         sync.Mutex
+	Cmd        *exec.Cmd
+	Term       *os.File
+	Challenge  *ChallengeState
 }
 
 func NewSession(studentID string) *Session {

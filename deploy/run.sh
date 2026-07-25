@@ -10,7 +10,7 @@ echo "=== Populating embedded web assets ==="
 cp -r frontend/. server/webassets/
 
 echo "=== Building qo-init C helper ==="
-gcc -O2 -o "$ROOT/deploy/qo-init" "$ROOT/deploy/src/qo-init.c"
+gcc -O2 -o "$ROOT/deploy/qo-init" "$ROOT/deploy/qo-init.c" -lseccomp
 
 echo "=== Building qo binary (statically linked for sandbox init) ==="
 cd "$ROOT/qo"

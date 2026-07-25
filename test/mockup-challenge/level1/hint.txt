@@ -1,0 +1,1 @@
+Use ls -la and cat

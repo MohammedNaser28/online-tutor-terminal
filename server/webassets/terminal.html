@@ -266,6 +266,12 @@ body {
         <span class="info-label">Difficulty:</span>
         <span class="info-value" id="challenge-difficulty">—</span>
       </div>
+      <div class="info-item" id="level-progress" style="display:none;">
+        <span class="info-label">Level:</span>
+        <span class="info-value" id="level-current">1</span>
+        <span class="info-label">/</span>
+        <span class="info-value" id="level-total">1</span>
+      </div>
     </div>
     <div id="connection-status">
       <span class="status-dot connecting" id="status-dot"></span>
@@ -313,9 +319,22 @@ var challengeInfo = {
   difficulty: params.get('difficulty') || '—'
 };
 
+function updateLevelProgress(data) {
+  var el = document.getElementById('level-progress');
+  if (!el) return;
+  if (data && data.total_levels > 0) {
+    el.style.display = 'flex';
+    document.getElementById('level-current').textContent = data.current_level + 1;
+    document.getElementById('level-total').textContent = data.total_levels;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function renderInfoBox() {
   document.getElementById('challenge-title').textContent = challengeInfo.title;
   document.getElementById('challenge-difficulty').textContent = challengeInfo.difficulty;
+  updateLevelProgress(window.__challengeStatus || null);
 }
 
 function setConnectionState(state) {
@@ -393,6 +412,10 @@ function connect() {
         closed = true;
         setConnectionState('disconnected');
         ws.close();
+        return;
+      }
+      if (msg.type === 'challenge') {
+        updateLevelProgress(JSON.parse(msg.message));
         return;
       }
     } catch (e) {

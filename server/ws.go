@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -122,13 +124,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	termFile := master
-
 	session.mu.Lock()
 	session.Cmd = cmd
-	session.Term = termFile
 	session.SetState(SessionActive)
 	session.mu.Unlock()
+
+	go s.discoverAndInitChallenge(session)
+	go s.pollChallengeRequests(session)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -137,7 +139,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pipeTermToWS(s, conn, termFile, session)
+	pipeTermToWS(s, conn, master, session)
 }
 
 func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Session) {
@@ -285,6 +287,35 @@ func (s *Server) cleanupSession(token string) {
 	session.Close()
 	s.manager.RemoveSession(token)
 	log.Printf("session %s cleaned up", token)
+}
+
+func (s *Server) discoverAndInitChallenge(session *Session) {
+	sessionsDir := "/tmp/qo-sessions"
+	studentID := session.StudentID
+	prefix := studentID + "-"
+
+	for i := 0; i < 200; i++ {
+		entries, err := os.ReadDir(sessionsDir)
+		if err == nil {
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				name := e.Name()
+				if !strings.HasPrefix(name, prefix) {
+					continue
+				}
+				rootfs := filepath.Join(sessionsDir, name)
+			session.mu.Lock()
+			session.RootfsPath = rootfs
+			s.initChallengeForSession(session)
+			session.mu.Unlock()
+			return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	log.Printf("warning: could not discover session rootfs for %s", session.Token)
 }
 
 func wsNotify(session *Session, msg wsMessage) {

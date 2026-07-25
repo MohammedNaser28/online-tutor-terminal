@@ -74,7 +74,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch r.Method + " " + r.URL.Path {
+ 	switch r.Method + " " + r.URL.Path {
 	case "GET /":
 		s.handleLogin(w, r)
 	case "POST /join":
@@ -87,6 +87,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleLeaderboardData(w, r)
 	case "POST /api/solved":
 		s.handleSolved(w, r)
+	case "GET /api/challenge/quest":
+		s.handleChallengeQuest(w, r)
+	case "GET /api/challenge/hint":
+		s.handleChallengeHint(w, r)
+	case "POST /api/challenge/go":
+		s.handleChallengeGo(w, r)
+	case "GET /api/challenge/map":
+		s.handleChallengeMap(w, r)
+	case "GET /api/challenge/status":
+		s.handleChallengeStatus(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -353,4 +363,145 @@ func itoa(n int) string {
 		buf[i] = '-'
 	}
 	return string(buf[i:])
+}
+
+func (s *Server) handleChallengeQuest(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+	if session.Challenge == nil || len(session.Challenge.Levels) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"question": "No challenge loaded."})
+		return
+	}
+	current := session.Challenge.Current()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"story":    session.Title,
+		"question": current.Question,
+		"level":    session.Challenge.CurrentLevel + 1,
+		"total":    session.Challenge.Total(),
+	})
+}
+
+func (s *Server) handleChallengeHint(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+	if session.Challenge == nil || len(session.Challenge.Levels) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"hint": "No hint available."})
+		return
+	}
+	current := session.Challenge.Current()
+	hint := current.Hint
+	if hint == "" {
+		hint = "No hint available."
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"hint": hint})
+}
+
+func (s *Server) handleChallengeGo(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+	if session.Challenge == nil || len(session.Challenge.Levels) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "No challenge loaded.", "completed": session.Challenge.Completed})
+		return
+	}
+
+	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Check failed: " + err.Error(), "completed": session.Challenge.Completed})
+		return
+	}
+
+	if !passed {
+		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Not quite right. Try again!", "completed": session.Challenge.Completed})
+		return
+	}
+
+	advanced := session.Challenge.Advance()
+	msg := "Correct!"
+	if advanced {
+		msg = "Correct! Advancing to level " + itoa(session.Challenge.CurrentLevel+1) + "..."
+	} else {
+		msg = "Correct! You completed all levels!"
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"passed":    true,
+		"message":   msg,
+		"completed": session.Challenge.Completed,
+		"next": map[string]any{
+			"level":    session.Challenge.CurrentLevel + 1,
+			"total":    session.Challenge.Total(),
+			"title":    session.Challenge.Current().Title,
+			"question": session.Challenge.Current().Question,
+			"hint":     session.Challenge.Current().Hint,
+		},
+	})
+}
+
+func (s *Server) handleChallengeMap(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+	if session.Challenge == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"levels": []any{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, session.Challenge.Status())
+}
+
+func (s *Server) handleChallengeStatus(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	session, ok := s.manager.GetSession(token)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid token"})
+		return
+	}
+	if session.Challenge == nil || len(session.Challenge.Levels) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "No challenge loaded."})
+		return
+	}
+	current := session.Challenge.Current()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"level":     session.Challenge.CurrentLevel + 1,
+		"total":     session.Challenge.Total(),
+		"title":     current.Title,
+		"completed": session.Challenge.Completed,
+	})
+}
+
+func (s *Server) initChallengeForSession(session *Session) {
+	if s.config.ArchivePath == "" {
+		return
+	}
+	meta, err := LoadChallengeMeta(s.config.QoBinaryPath, s.config.ArchivePath, s.config.Password, s.config.Key)
+	if err != nil {
+		log.Printf("warning: failed to load challenge metadata for session %s: %v", session.Token, err)
+		return
+	}
+	session.Title = meta.Title
+	session.Difficulty = meta.Difficulty
+	if len(meta.Levels) > 0 {
+		session.Challenge = NewChallengeState(meta.Levels)
+	} else if session.RootfsPath != "" {
+		levels, err := DiscoverLevelsFromRootfs(session.RootfsPath)
+		if err == nil {
+			session.Challenge = NewChallengeState(levels)
+		} else {
+			log.Printf("warning: failed to discover levels for session %s: %v", session.Token, err)
+		}
+	}
 }
