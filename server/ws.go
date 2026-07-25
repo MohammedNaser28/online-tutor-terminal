@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -248,6 +249,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Session) {
 	token := session.Token
 	done := make(chan struct{}, 2)
+	var connMu sync.Mutex
 
 	const (
 		pingPeriod = 10 * time.Second
@@ -266,7 +268,10 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		for {
 			n, err := term.Read(buf)
 			if n > 0 {
-				if err := conn.WriteMessage(websocket.TextMessage, buf[:n]); err != nil {
+				connMu.Lock()
+				err := conn.WriteMessage(websocket.TextMessage, buf[:n])
+				connMu.Unlock()
+				if err != nil {
 					return
 				}
 			}
@@ -313,11 +318,14 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		ticker := time.NewTicker(pingPeriod)
 		defer ticker.Stop()
 		for range ticker.C {
+			connMu.Lock()
 			conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			err := conn.WriteMessage(websocket.PingMessage, nil)
+			conn.SetWriteDeadline(time.Time{})
+			connMu.Unlock()
+			if err != nil {
 				return
 			}
-			conn.SetWriteDeadline(time.Time{})
 		}
 	}()
 

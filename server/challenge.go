@@ -226,99 +226,116 @@ func (s *Server) pollChallengeRequests(session *Session) {
 	lastAction := ""
 
 	for {
-		data, err := os.ReadFile(reqFile)
-		if err != nil {
-			time.Sleep(50 * time.Millisecond)
-			continue
-		}
-
-		action := strings.TrimSpace(string(data))
-		if action == "" || action == lastAction {
-			time.Sleep(50 * time.Millisecond)
-			continue
-		}
-
-		lastAction = action
-
-		log.Printf("challenge req session=%s action=%q", session.Token, action)
-		var resp []byte
-		goAnswer := ""
-		if strings.HasPrefix(action, "go:") {
-			goAnswer = action[3:]
-			action = "go"
-		}
-
-		switch action {
-		case "quest":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				current := session.Challenge.Current()
-				resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
-					session.Challenge.CurrentLevel+1, session.Challenge.Total(),
-					session.Title, current.Question))
-			} else {
-				resp = []byte("\033[33mNo challenge loaded.\033[0m")
-			}
-		case "hint":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				current := session.Challenge.Current()
-				hint := current.Hint
-				if hint == "" {
-					hint = "No hint available."
+		func() {
+			var resp []byte
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic processing action in session %s: %v", session.Token, r)
+					resp = []byte(fmt.Sprintf("\033[31m❌ Error processing command. Try again.\033[0m"))
+					_ = os.WriteFile(respFile, append(resp, '\n'), 0644)
 				}
-				resp = []byte(fmt.Sprintf("\033[33m💡 Hint: %s\033[0m", hint))
-			} else {
-				resp = []byte("\033[33mNo hint available.\033[0m")
+			}()
+
+			data, err := os.ReadFile(reqFile)
+			if err != nil {
+				time.Sleep(50 * time.Millisecond)
+				return
 			}
-		case "go":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer)
-				if err != nil {
-					resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
-				} else if passed {
-					session.IncrementScore()
-					advanced := session.Challenge.Advance()
-					if advanced {
-						resp = []byte(fmt.Sprintf("\033[32m✅ Correct! Advancing to level %d...\033[0m", session.Challenge.CurrentLevel+1))
+
+			action := strings.TrimSpace(string(data))
+			if action == "" || action == lastAction {
+				time.Sleep(50 * time.Millisecond)
+				return
+			}
+
+			lastAction = action
+
+			log.Printf("challenge req session=%s action=%q", session.Token, action)
+			goAnswer := ""
+			if strings.HasPrefix(action, "go:") {
+				goAnswer = action[3:]
+				action = "go"
+			}
+
+			switch action {
+			case "quest":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					current := session.Challenge.Current()
+					resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
+						session.Challenge.CurrentLevel+1, session.Challenge.Total(),
+						session.Title, current.Question))
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
+				}
+			case "hint":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					current := session.Challenge.Current()
+					hint := current.Hint
+					if hint == "" {
+						hint = "No hint available."
+					}
+					resp = []byte(fmt.Sprintf("\033[33m💡 Hint: %s\033[0m", hint))
+				} else {
+					resp = []byte("\033[33mNo hint available.\033[0m")
+				}
+			case "go":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer)
+					if err != nil {
+						resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
+					} else if passed {
+						session.IncrementScore()
+						advanced := session.Challenge.Advance()
+						if advanced {
+							resp = []byte(fmt.Sprintf("\033[32m✅ Correct! Advancing to level %d...\033[0m", session.Challenge.CurrentLevel+1))
+						} else {
+							resp = []byte(fmt.Sprintf("\033[32m🎉 Correct! You completed all levels!\033[0m"))
+						}
 					} else {
-						resp = []byte(fmt.Sprintf("\033[32m🎉 Correct! You completed all levels!\033[0m"))
+						resp = []byte("\033[31m❌ Not quite right. Try again!\033[0m")
 					}
 				} else {
-					resp = []byte("\033[31m❌ Not quite right. Try again!\033[0m")
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
-			} else {
-				resp = []byte("\033[33mNo challenge loaded.\033[0m")
-			}
-		case "map":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				st := session.Challenge.Status()
-				resp = []byte(fmt.Sprintf("\033[96m━━━ Map %d/%d\033[0m  %s",
-					st["current_level"].(int)+1, st["total_levels"].(int),
-					st["current_title"].(string)))
-			} else {
-				resp = []byte("\033[33mNo challenge loaded.\033[0m")
-			}
-		case "status":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				current := session.Challenge.Current()
-				status := "\033[33mIn progress\033[0m"
-				if session.Challenge.Completed {
-					status = "\033[32m✅ Completed\033[0m"
+			case "map":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					st := session.Challenge.Status()
+					cur, curOk := st["current_level"].(int)
+					tot, totOk := st["total_levels"].(int)
+					title, titleOk := st["current_title"].(string)
+					if !curOk || !totOk || !titleOk {
+						resp = []byte("\033[31m❌ Failed to read challenge status.\033[0m")
+					} else {
+						resp = []byte(fmt.Sprintf("\033[96m━━━ Map %d/%d\033[0m  %s", cur+1, tot, title))
+					}
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
-				resp = []byte(fmt.Sprintf("\033[96mLevel %d/%d\033[0m  %s  %s",
-					session.Challenge.CurrentLevel+1, session.Challenge.Total(),
-					current.Title, status))
-			} else {
-				resp = []byte("\033[33mNo challenge loaded.\033[0m")
+			case "status":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					current := session.Challenge.Current()
+					status := "\033[33mIn progress\033[0m"
+					if session.Challenge.Completed {
+						status = "\033[32m✅ Completed\033[0m"
+					}
+					resp = []byte(fmt.Sprintf("\033[96mLevel %d/%d\033[0m  %s  %s",
+						session.Challenge.CurrentLevel+1, session.Challenge.Total(),
+						current.Title, status))
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
+				}
+			case "logo":
+				resp = []byte("\033[36mQO Logo\033[0m")
+			case "help":
+				resp = []byte("\033[1mCommands: quest, hint, go, map, status, logo, help\033[0m")
+			default:
+				resp, _ = json.Marshal(map[string]string{"error": "unknown action: " + action})
 			}
-		case "logo":
-			resp = []byte("\033[36mQO Logo\033[0m")
-		case "help":
-			resp = []byte("\033[1mCommands: quest, hint, go, map, status, logo, help\033[0m")
-		default:
-			resp, _ = json.Marshal(map[string]string{"error": "unknown action: " + action})
-		}
 
-		_ = os.WriteFile(respFile, append(resp, '\n'), 0644)
-		log.Printf("challenge resp session=%s action=%q resp=%s", session.Token, action, string(resp))
+			if resp != nil {
+				_ = os.WriteFile(respFile, append(resp, '\n'), 0644)
+				log.Printf("challenge resp session=%s action=%q resp=%s", session.Token, action, string(resp))
+			}
+		}()
 	}
 }
