@@ -1,0 +1,14 @@
+title: "Sample Challenge"
+difficulty: "easy"
+story: "Welcome to the sample challenge!"
+question: "What is the answer?"
+default_hint: "Think carefully"
+levels:
+  - id: 1
+    title: "Level One"
+    question: "Find the flag"
+    hint: "Check the file"
+  - id: 2
+    title: "Level Two"
+    question: "Find the other flag"
+    hint: "Look in /tmp"
