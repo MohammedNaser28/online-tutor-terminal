@@ -418,7 +418,8 @@ func (s *Server) handleChallengeGo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, "")
+	level := session.Challenge.Current()
+	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, "", level.CheckScript)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Check failed: " + err.Error(), "completed": session.Challenge.Completed})
 		return

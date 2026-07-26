@@ -12,10 +12,11 @@ import (
 )
 
 type ChallengeLevel struct {
-	ID       int    `json:"id" yaml:"id"`
-	Title    string `json:"title" yaml:"title"`
-	Question string `json:"question" yaml:"question"`
-	Hint     string `json:"hint,omitempty" yaml:"hint,omitempty"`
+	ID           int    `json:"id" yaml:"id"`
+	Title        string `json:"title" yaml:"title"`
+	Question     string `json:"question" yaml:"question"`
+	Hint         string `json:"hint,omitempty" yaml:"hint,omitempty"`
+	CheckScript  string `json:"-" yaml:"-"` // loaded from file, kept server-side only
 }
 
 type ChallengeMetadata struct {
@@ -126,18 +127,48 @@ func normalizeMeta(meta *ChallengeMetadata) {
 	}
 }
 
-func RunCheckScript(rootfsPath string, levelID int, stdinInput string) (bool, error) {
-	scriptPath := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", levelID), "check.sh")
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
+	for i := range levels {
+		lvl := &levels[i]
+		checkPath := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID), "check.sh")
+		for attempt := 0; attempt < 30; attempt++ {
+			if _, err := os.Stat(checkPath); err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		data, err := os.ReadFile(checkPath)
+		if err != nil {
+			log.Printf("load check script: level=%d path=%s err=%v", lvl.ID, checkPath, err)
+			continue
+		}
+		lvl.CheckScript = string(data)
+		if err := os.Remove(checkPath); err != nil {
+			log.Printf("remove check script: level=%d path=%s err=%v", lvl.ID, checkPath, err)
+		} else {
+			log.Printf("secured check script: level=%d path=%s removed from sandbox", lvl.ID, checkPath)
+		}
+	}
+	return nil
+}
+
+func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScript string) (bool, error) {
+	if checkScript == "" {
 		return false, nil
 	}
-	cmd := exec.Command("/bin/bash", scriptPath)
+	cmd := exec.Command("/bin/bash", "-s", "--")
 	cmd.Dir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", levelID))
-	if stdinInput != "" {
-		cmd.Stdin = strings.NewReader(stdinInput + "\n")
-	}
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	var sb strings.Builder
+	sb.WriteString("set -e\n")
+	sb.WriteString(checkScript)
+	sb.WriteByte('\n')
+	if stdinInput != "" {
+		sb.WriteString(stdinInput)
+		sb.WriteByte('\n')
+	}
+	cmd.Stdin = strings.NewReader(sb.String())
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return exitErr.ExitCode() == 0, nil
@@ -303,7 +334,8 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				}
 			case "go":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-					passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer)
+					level := session.Challenge.Current()
+					passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer, level.CheckScript)
 					if err != nil {
 						resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
 					} else if passed {

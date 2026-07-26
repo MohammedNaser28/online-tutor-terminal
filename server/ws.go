@@ -251,6 +251,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Read check.sh content from extracted rootfs and delete from sandbox.
+	if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+		loadCheckScripts(session.RootfsPath, session.Challenge.Levels)
+	}
+
 	go s.pollChallengeRequests(session)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
