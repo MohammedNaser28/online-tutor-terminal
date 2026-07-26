@@ -11,12 +11,33 @@ import (
 	"time"
 )
 
+type ValidatorType string
+
+const (
+	ValidatorFlag           ValidatorType = "flag"
+	ValidatorProcessDead    ValidatorType = "process_dead"
+	ValidatorProcessRunning ValidatorType = "process_running"
+	ValidatorFileExists     ValidatorType = "file_exists"
+	ValidatorFileNotExists  ValidatorType = "file_not_exists"
+	ValidatorFileContains   ValidatorType = "file_contains"
+	ValidatorFilePerms      ValidatorType = "file_permissions"
+)
+
+type Validator struct {
+	Type  ValidatorType `json:"type"`
+	Value string        `json:"value,omitempty"`
+	Path  string        `json:"path,omitempty"`
+	Name  string        `json:"name,omitempty"`
+	Mode  string        `json:"mode,omitempty"`
+}
+
 type ChallengeLevel struct {
-	ID           int    `json:"id" yaml:"id"`
-	Title        string `json:"title" yaml:"title"`
-	Question     string `json:"question" yaml:"question"`
-	Hint         string `json:"hint,omitempty" yaml:"hint,omitempty"`
-	CheckScript  string `json:"-" yaml:"-"` // loaded from file, kept server-side only
+	ID           int        `json:"id"`
+	Title        string     `json:"title"`
+	Question     string     `json:"question"`
+	Hint         string     `json:"hint,omitempty"`
+	Validator    *Validator `json:"validator,omitempty"`
+	CheckScript  string     `json:"-"` // loaded from file, kept server-side only
 }
 
 type ChallengeMetadata struct {
@@ -178,6 +199,76 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 	return true, nil
 }
 
+func runValidator(rootfsPath string, level ChallengeLevel, answer string) (bool, error) {
+	v := level.Validator
+	if v == nil {
+		// No validator defined — caller should fall back to check script.
+		return false, fmt.Errorf("no validator")
+	}
+
+	levelDir := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", level.ID))
+
+	switch v.Type {
+	case ValidatorFlag:
+		return answer == v.Value, nil
+
+	case ValidatorProcessDead:
+		return !processExists(rootfsPath, v.Name), nil
+
+	case ValidatorProcessRunning:
+		return processExists(rootfsPath, v.Name), nil
+
+	case ValidatorFileExists:
+		_, err := os.Stat(filepath.Join(levelDir, v.Path))
+		return err == nil, nil
+
+	case ValidatorFileNotExists:
+		_, err := os.Stat(filepath.Join(levelDir, v.Path))
+		return err != nil, nil
+
+	case ValidatorFileContains:
+		path := filepath.Join(levelDir, v.Path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return false, nil
+		}
+		return strings.Contains(string(data), v.Value), nil
+
+	case ValidatorFilePerms:
+		path := filepath.Join(levelDir, v.Path)
+		info, err := os.Stat(path)
+		if err != nil {
+			return false, nil
+		}
+		mode := fmt.Sprintf("%o", info.Mode().Perm())
+		return mode == v.Mode, nil
+
+	default:
+		return false, fmt.Errorf("unknown validator type: %s", v.Type)
+	}
+}
+
+func processExists(rootfsPath string, name string) bool {
+	procDir := filepath.Join(rootfsPath, "rootfs", "proc")
+	entries, err := os.ReadDir(procDir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		cmdline, err := os.ReadFile(filepath.Join(procDir, e.Name(), "cmdline"))
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(cmdline), name) {
+			return true
+		}
+	}
+	return false
+}
+
 func DiscoverLevelsFromRootfs(rootfsPath string) ([]ChallengeLevel, error) {
 	tmpDir := filepath.Join(rootfsPath, "rootfs", "tmp")
 
@@ -335,7 +426,16 @@ func (s *Server) pollChallengeRequests(session *Session) {
 			case "go":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 					level := session.Challenge.Current()
-					passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer, level.CheckScript)
+					var passed bool
+					var err error
+
+					// Try pure Go validator first (zero process overhead).
+					passed, err = runValidator(session.RootfsPath, level, goAnswer)
+					if err != nil && level.CheckScript != "" {
+						// Fall back to check.sh script (only if no validator matched).
+						passed, err = RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer, level.CheckScript)
+					}
+
 					if err != nil {
 						resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
 					} else if passed {
