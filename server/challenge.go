@@ -38,6 +38,7 @@ type ChallengeLevel struct {
 	Hint         string     `json:"hint,omitempty"`
 	Validator    *Validator `json:"validator,omitempty"`
 	CheckScript  string     `json:"-"` // loaded from file, kept server-side only
+	InitScript   string     `json:"-"` // setup script, deleted after first run
 }
 
 type ChallengeMetadata struct {
@@ -53,13 +54,14 @@ type ChallengeState struct {
 	CurrentLevel int
 	Levels       []ChallengeLevel
 	Completed    bool
+	initRan      map[int]bool // levels whose init.sh has been run
 }
 
 func NewChallengeState(levels []ChallengeLevel) *ChallengeState {
 	if len(levels) == 0 {
-		return &ChallengeState{Levels: []ChallengeLevel{}}
+		return &ChallengeState{Levels: []ChallengeLevel{}, initRan: map[int]bool{}}
 	}
-	return &ChallengeState{CurrentLevel: 0, Levels: levels}
+	return &ChallengeState{CurrentLevel: 0, Levels: levels, initRan: map[int]bool{}}
 }
 
 func (c *ChallengeState) Current() ChallengeLevel {
@@ -151,25 +153,48 @@ func normalizeMeta(meta *ChallengeMetadata) {
 func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 	for i := range levels {
 		lvl := &levels[i]
-		checkPath := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID), "check.sh")
+		lvlDir := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID))
+
+		// Wait for level directory to exist (archive extraction may still be in progress).
 		for attempt := 0; attempt < 30; attempt++ {
-			if _, err := os.Stat(checkPath); err == nil {
+			if _, err := os.Stat(lvlDir); err == nil {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		data, err := os.ReadFile(checkPath)
-		if err != nil {
-			log.Printf("load check script: level=%d path=%s err=%v", lvl.ID, checkPath, err)
-			continue
+
+		checkPath := filepath.Join(lvlDir, "check.sh")
+		if data, err := os.ReadFile(checkPath); err == nil {
+			lvl.CheckScript = string(data)
+			if err := os.Remove(checkPath); err == nil {
+				log.Printf("secured check.sh: level=%d", lvl.ID)
+			}
 		}
-		lvl.CheckScript = string(data)
-		if err := os.Remove(checkPath); err != nil {
-			log.Printf("remove check script: level=%d path=%s err=%v", lvl.ID, checkPath, err)
-		} else {
-			log.Printf("secured check script: level=%d path=%s removed from sandbox", lvl.ID, checkPath)
+
+		initPath := filepath.Join(lvlDir, "init.sh")
+		if data, err := os.ReadFile(initPath); err == nil {
+			lvl.InitScript = string(data)
+			if err := os.Remove(initPath); err == nil {
+				log.Printf("secured init.sh: level=%d", lvl.ID)
+			}
 		}
 	}
+	return nil
+}
+
+func runInitScript(rootfsPath string, level ChallengeLevel) error {
+	if level.InitScript == "" {
+		return nil
+	}
+	cmd := exec.Command("/bin/bash", "-s", "--")
+	cmd.Dir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", level.ID))
+	cmd.Stdin = strings.NewReader(level.InitScript + "\n")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("init.sh failed for level %d: %w", level.ID, err)
+	}
+	log.Printf("init.sh completed for level %d", level.ID)
 	return nil
 }
 
@@ -402,16 +427,26 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				action = "go"
 			}
 
-			switch action {
-			case "quest":
-				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-					current := session.Challenge.Current()
-					resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
-						session.Challenge.CurrentLevel+1, session.Challenge.Total(),
-						session.Title, current.Question))
-				} else {
-					resp = []byte("\033[33mNo challenge loaded.\033[0m")
+		switch action {
+		case "quest":
+			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+				current := session.Challenge.Current()
+				levelID := session.Challenge.CurrentLevel + 1
+
+				// Run init.sh on first access to this level (creates files, env, flags).
+				if !session.Challenge.initRan[levelID] && current.InitScript != "" {
+					if err := runInitScript(session.RootfsPath, current); err != nil {
+						log.Printf("init.sh failed: level=%d err=%v", levelID, err)
+					}
+					session.Challenge.initRan[levelID] = true
 				}
+
+				resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
+					levelID, session.Challenge.Total(),
+					session.Title, current.Question))
+			} else {
+				resp = []byte("\033[33mNo challenge loaded.\033[0m")
+			}
 			case "hint":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 					current := session.Challenge.Current()
