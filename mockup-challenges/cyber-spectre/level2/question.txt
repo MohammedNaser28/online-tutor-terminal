@@ -1,0 +1,8 @@
+🚨 MISSION BRIEFING — LEVEL 2:
+Hostile sentry code is active in /tmp/level2!
+A rogue background process 'sentry.sh' is monitoring terminal activity.
+
+1. Identify the running 'sentry.sh' process and kill it (using ps/pgrep and kill/pkill).
+2. Remove execute permissions from 'sentry.sh' (chmod -x sentry.sh).
+
+Once neutralized, type 'go' to confirm!

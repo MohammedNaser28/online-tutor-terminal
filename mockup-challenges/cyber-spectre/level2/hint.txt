@@ -1,0 +1,1 @@
+💡 Use 'pgrep -f sentry' or 'ps aux | grep sentry' to find the PID, kill it with 'pkill -f sentry' or 'kill <PID>', then run 'chmod -x sentry.sh'.

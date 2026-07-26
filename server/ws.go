@@ -229,6 +229,23 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				session.Title = meta.Title
 				session.Difficulty = meta.Difficulty
 				session.Challenge = NewChallengeState(meta.Levels)
+				log.Printf("session %s loaded challenge meta: title=%q levels=%d", token, meta.Title, len(meta.Levels))
+			} else {
+				log.Printf("session %s loaded challenge meta but levels empty, trying single question", token)
+				if meta.Question != "" {
+					meta.Levels = []ChallengeLevel{{
+						ID:       1,
+						Title:    meta.Title,
+						Question: meta.Question,
+						Hint:     meta.DefaultHint,
+					}}
+					session.Title = meta.Title
+					session.Difficulty = meta.Difficulty
+					session.Challenge = NewChallengeState(meta.Levels)
+					log.Printf("session %s created single level from question", token)
+				} else {
+					log.Printf("session %s meta has no levels and no question, skipping", token)
+				}
 			}
 			session.mu.Unlock()
 		}

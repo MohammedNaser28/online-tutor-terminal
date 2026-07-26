@@ -1,0 +1,6 @@
+📦 MISSION BRIEFING — LEVEL 3:
+Final objective, Agent! Classified schematics are stored inside the 'intel' directory (/tmp/level3/intel).
+
+Package the entire 'intel' directory into a compressed tarball named 'exfiltrated.tar.gz' inside /tmp/level3.
+
+Once created, type 'go' to transmit the package and exit!

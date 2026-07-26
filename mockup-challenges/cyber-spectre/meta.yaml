@@ -1,0 +1,41 @@
+title: "Operation Cyber Spectre"
+difficulty: "medium"
+story: |
+  🌌 AGENT TRANSMISSION — CLASSIFIED 🌌
+  Welcome to Sector 7, Agent 0x42. A rogue cyber syndicate has commandeered this Linux terminal node.
+  Your objective is to infiltrate the system, locate hidden intel, neutralize hostile processes, and archive the payload for extraction!
+levels:
+  - id: 1
+    title: "Level 1: Decoding the Transmission"
+    question: |
+      📡 MISSION BRIEFING — LEVEL 1:
+      An encrypted intelligence log was intercepted and saved to 'transmissions.log' in your directory (/tmp/level1).
+      The log is flooded with noise, but contains ONE secret clearance passcode matching format 'CYBER-XXXX-SPECTRE'.
+
+      Use Linux text tools (like grep) to inspect 'transmissions.log' and find the passcode.
+      Submit your answer using: go <passcode>
+    hint: "Try running: grep 'CYBER-' transmissions.log"
+
+  - id: 2
+    title: "Level 2: Neutralizing the Surveillance Sentry"
+    question: |
+      🚨 MISSION BRIEFING — LEVEL 2:
+      Hostile sentry code is active in /tmp/level2!
+      A rogue background process 'sentry.sh' is monitoring terminal activity.
+
+      1. Identify the running 'sentry.sh' process and kill it (using ps/pgrep and kill/pkill).
+      2. Remove execute permissions from 'sentry.sh' (chmod -x sentry.sh).
+
+      Once neutralized, type 'go' to confirm!
+    hint: "Use 'pgrep -f sentry' or 'ps aux | grep sentry' to find the PID, kill it with 'pkill -f sentry' or 'kill <PID>', then run 'chmod -x sentry.sh'."
+
+  - id: 3
+    title: "Level 3: Secure Data Exfiltration"
+    question: |
+      📦 MISSION BRIEFING — LEVEL 3:
+      Final objective, Agent! Classified schematics are stored inside the 'intel' directory (/tmp/level3/intel).
+
+      Package the entire 'intel' directory into a compressed tarball named 'exfiltrated.tar.gz' inside /tmp/level3.
+
+      Once created, type 'go' to transmit the package and exit!
+    hint: "Use the tar command: tar -czvf exfiltrated.tar.gz intel"

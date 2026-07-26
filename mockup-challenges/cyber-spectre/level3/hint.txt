@@ -1,0 +1,1 @@
+💡 Use the tar command: tar -czvf exfiltrated.tar.gz intel

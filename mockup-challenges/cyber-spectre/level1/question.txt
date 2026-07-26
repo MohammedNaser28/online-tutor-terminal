@@ -1,0 +1,6 @@
+📡 MISSION BRIEFING — LEVEL 1:
+An encrypted intelligence log was intercepted and saved to 'transmissions.log' in your directory.
+The log is flooded with noise, but contains ONE secret clearance passcode matching format 'CYBER-XXXX-SPECTRE'.
+
+Use Linux text tools (like grep) to inspect 'transmissions.log' and find the passcode.
+Submit your answer using: go <passcode>

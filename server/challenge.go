@@ -218,12 +218,32 @@ func (s *Server) pollChallengeRequests(session *Session) {
 		return
 	}
 
+	// If challenge was not initialized from metadata (e.g. meta.yaml had no
+	// levels or question), fall back to discovering level directories from the
+	// rootfs filesystem.  DiscoverLevelsFromRootfs retries internally for ~5s,
+	// giving the qo-start process time to extract the archive.
+	session.mu.Lock()
+	needsDiscovery := session.Challenge == nil || len(session.Challenge.Levels) == 0
+	session.mu.Unlock()
+
+	if needsDiscovery {
+		levels, err := DiscoverLevelsFromRootfs(session.RootfsPath)
+		if err == nil && len(levels) > 0 {
+			session.mu.Lock()
+			if session.Challenge == nil || len(session.Challenge.Levels) == 0 {
+				session.Challenge = NewChallengeState(levels)
+				log.Printf("pollChallengeRequests: discovered %d levels from rootfs for session %s", len(levels), session.Token)
+			}
+			session.mu.Unlock()
+		} else {
+			log.Printf("pollChallengeRequests: no levels discovered from rootfs for session %s: %v", session.Token, err)
+		}
+	}
+
 	reqFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-challenge-req")
 	respFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-challenge-resp")
 
 	log.Printf("pollChallengeRequests session=%s started rootfs=%s", session.Token, session.RootfsPath)
-
-	lastAction := ""
 
 	for {
 		func() {
@@ -243,12 +263,15 @@ func (s *Server) pollChallengeRequests(session *Session) {
 			}
 
 			action := strings.TrimSpace(string(data))
-			if action == "" || action == lastAction {
+			if action == "" {
 				time.Sleep(50 * time.Millisecond)
 				return
 			}
 
-			lastAction = action
+			// Clear the request file immediately after reading so repeated
+			// identical commands are not ignored (the shell blocks until it
+			// reads a response, so there is no write-side race).
+			_ = os.WriteFile(reqFile, []byte{}, 0644)
 
 			log.Printf("challenge req session=%s action=%q", session.Token, action)
 			goAnswer := ""
