@@ -1,0 +1,24 @@
+title: "Integration Test Challenge"
+difficulty: "medium"
+story: "End-to-end integration test challenge"
+question: "Solve the levels"
+# unlock_time and duration are overridden by CLI flags in integration tests
+unlock_time: "2100-01-01 00:00"
+duration: "120s"
+default_hint: "Read the files"
+levels:
+  - id: 1
+    title: "Level One"
+    question: "Create a file named /tmp/level1/solved.txt"
+    hint: "Use touch"
+    validator:
+      type: file_exists
+      path: solved.txt
+  - id: 2
+    title: "Level Two"
+    question: "Find the flag in /tmp/level2/flag.txt"
+    hint: "Use cat"
+    validator:
+      type: file_contains
+      value: "correct_flag"
+      path: flag.txt

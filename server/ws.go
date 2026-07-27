@@ -433,8 +433,6 @@ func (s *Server) cleanupSession(token string) {
 func findQoInit(qoBinaryPath string) string {
 	candidates := []string{
 		filepath.Join(filepath.Dir(qoBinaryPath), "qo-init"),
-		"/home/mohammed-niri/projects/qo-learn-tool/qo/qo-init",
-		filepath.Join("/home/mohammed-niri/projects/qo-learn-tool", "qo", "qo-init"),
 		"/usr/local/bin/qo-init",
 	}
 	for _, c := range candidates {

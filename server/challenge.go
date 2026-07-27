@@ -163,21 +163,26 @@ func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		checkPath := filepath.Join(lvlDir, "check.sh")
-		if data, err := os.ReadFile(checkPath); err == nil {
-			lvl.CheckScript = string(data)
-			if err := os.Remove(checkPath); err == nil {
-				log.Printf("secured check.sh: level=%d", lvl.ID)
+		// Read and remove each file with per-file retry — the directory
+		// may exist before all its contents are written.
+		readFile := func(path, label string, store *string) {
+			for attempt := 0; attempt < 20; attempt++ {
+				data, err := os.ReadFile(path)
+				if err == nil {
+					*store = string(data)
+					if err := os.Remove(path); err == nil {
+						log.Printf("secured %s: level=%d", label, lvl.ID)
+					}
+					return
+				}
+				time.Sleep(150 * time.Millisecond)
 			}
 		}
 
-		initPath := filepath.Join(lvlDir, "init.sh")
-		if data, err := os.ReadFile(initPath); err == nil {
-			lvl.InitScript = string(data)
-			if err := os.Remove(initPath); err == nil {
-				log.Printf("secured init.sh: level=%d", lvl.ID)
-			}
-		}
+		readFile(filepath.Join(lvlDir, "check.sh"), "check.sh", &lvl.CheckScript)
+		readFile(filepath.Join(lvlDir, "init.sh"), "init.sh", &lvl.InitScript)
+		readFile(filepath.Join(lvlDir, "question.txt"), "question.txt", &lvl.Question)
+		readFile(filepath.Join(lvlDir, "hint.txt"), "hint.txt", &lvl.Hint)
 	}
 	return nil
 }

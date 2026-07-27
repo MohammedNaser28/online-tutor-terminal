@@ -2,3 +2,18 @@ title: "Mockup Challenge"
 difficulty: "easy"
 story: |
   Welcome to the mockup challenge! Complete all levels to finish.
+levels:
+  - id: 1
+    title: "Level One"
+    question: "What is 2 + 2?"
+    hint: "Use ls -la and cat"
+    validator:
+      type: flag
+      value: "4"
+  - id: 2
+    title: "Level Two"
+    question: "What is the capital of France?"
+    hint: "Think about geography"
+    validator:
+      type: flag
+      value: "Paris"
