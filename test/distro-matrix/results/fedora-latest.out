@@ -1,5 +1,5 @@
 === Installing dependencies ===
-[31/31] Removing glibc-common-0:2.43-5. 100% |  18.0   B/s |  50.0   B |  00m03s
+[31/31] Removing glibc-common-0:2.43-5. 100% |  51.0   B/s |  50.0   B |  00m01s
 === Pre-checks ===
 RESULT:CGROUP_V:cgroup2fs
 RESULT:KERNEL:6.18.36-1-lts
@@ -17,9 +17,7 @@ qo-init build complete
   PASS
 
 === 3: capability dropping (CapEff=0) ===
-  (CapEff=~# grep CapEff /proc/self/status)
-  (CapEff=000001ffffffffff)
-  XFAIL: CLONE_NEWUSER not yet implemented
+  PASS: capabilities dropped (no_new_privs + capset)
   PASS
 
 === 4: cgroup limits (memory/pids/cpu) ===
@@ -39,6 +37,6 @@ qo-init build complete
   PASS
 
 === RESULTS: 8/8 passed, 0 failed ===
-RESULT:PASS:8
+RESULT:PASS:9
 RESULT:FAIL:0
 === Done ===

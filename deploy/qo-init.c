@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -36,27 +37,56 @@ static int write_userns_map(const char *path, const char *content) {
     return 0;
 }
 
-static int setup_userns(void) {
-    int uid = getuid();
-    int gid = getgid();
-    char buf[256];
+static int setup_userns(uid_t host_uid, gid_t host_gid) {
+    char buf[64];
 
-    snprintf(buf, sizeof(buf), "0 %d 1\n", uid);
-    if (write_userns_map("/proc/self/uid_map", buf) != 0) {
-        return 0;
+    if (write_userns_map("/proc/self/setgroups", "deny") != 0) {
+        return -1;
     }
 
-    snprintf(buf, sizeof(buf), "deny");
-    if (write_userns_map("/proc/self/setgroups", buf) != 0) {
-        return 0;
-    }
-
-    snprintf(buf, sizeof(buf), "0 %d 1\n", gid);
+    snprintf(buf, sizeof(buf), "0 %d 1\n", (int)host_gid);
     if (write_userns_map("/proc/self/gid_map", buf) != 0) {
-        return 0;
+        return -1;
+    }
+
+    snprintf(buf, sizeof(buf), "0 %d 1\n", (int)host_uid);
+    if (write_userns_map("/proc/self/uid_map", buf) != 0) {
+        return -1;
     }
 
     return 0;
+}
+
+struct child_args {
+    const char *rootfsPath;
+    uid_t host_uid;
+    gid_t host_gid;
+};
+
+static void mount_pseudo_fs(const char *base) {
+    char mountPath[4096];
+
+    snprintf(mountPath, sizeof(mountPath), "%s/proc", base);
+    if (mount("proc", mountPath, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0) {
+        if (errno != EBUSY) {
+            perror("mount /proc");
+        }
+    }
+
+    snprintf(mountPath, sizeof(mountPath), "%s/dev", base);
+    if (mount("devtmpfs", mountPath, "devtmpfs", MS_NOSUID | MS_NOEXEC, NULL) != 0) {
+        if (errno != EBUSY) {
+            perror("mount /dev (devtmpfs)");
+        }
+    }
+
+    snprintf(mountPath, sizeof(mountPath), "%s/dev/pts", base);
+    mkdir(mountPath, 0755);
+    if (mount("devpts", mountPath, "devpts", MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=0620") != 0) {
+        if (errno != EBUSY) {
+            perror("mount /dev/pts");
+        }
+    }
 }
 
 static int switch_root(const char *rootfsPath) {
@@ -74,6 +104,8 @@ static int switch_root(const char *rootfsPath) {
         perror("mkdir pivot_old");
         return -1;
     }
+
+    mount_pseudo_fs(chrootPath);
 
     if (chdir(chrootPath) != 0) {
         perror("chdir rootfs");
@@ -277,7 +309,12 @@ static int spawn_shell(const char *rootfsPath) {
 }
 
 static int child(void *arg) {
-    const char *rootfsPath = (const char *)arg;
+    struct child_args *ca = (struct child_args *)arg;
+
+    if (getenv("QO_NO_USERNS") == NULL && setup_userns(ca->host_uid, ca->host_gid) != 0) {
+        fprintf(stderr, "qo-init: user namespace mapping failed, requesting fallback\n");
+        return 42;
+    }
 
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
         perror("mount private");
@@ -289,40 +326,58 @@ static int child(void *arg) {
         return 1;
     }
 
-    if (switch_root(rootfsPath) != 0) {
+    if (switch_root(ca->rootfsPath) != 0) {
         fprintf(stderr, "pivot_root failed, falling back to chroot\n");
         char chrootPath[4096];
-        snprintf(chrootPath, sizeof(chrootPath), "%s/rootfs", rootfsPath);
+        snprintf(chrootPath, sizeof(chrootPath), "%s/rootfs", ca->rootfsPath);
         if (chroot(chrootPath) != 0) {
             perror("chroot fallback");
             return 1;
         }
+        mount_pseudo_fs("/");
     }
 
-    if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0) {
-        if (errno != EBUSY) {
-            perror("mount /proc");
-        }
-    }
-
-    if (mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_NOEXEC, NULL) != 0) {
-        if (errno != EBUSY) {
-            perror("mount /dev (devtmpfs)");
-        }
-    }
-
-    mkdir("/dev/pts", 0755);
-    if (mount("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=0620") != 0) {
-        if (errno != EBUSY) {
-            perror("mount /dev/pts");
-        }
-    }
-
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     drop_capabilities();
     set_resource_limits();
     setup_seccomp();
 
-    return spawn_shell(rootfsPath);
+    return spawn_shell(ca->rootfsPath);
+}
+
+static int run_child(const char *rootfsPath, unsigned long clone_flags) {
+    char *stack = malloc(STACK_SIZE);
+    if (!stack) {
+        perror("malloc");
+        return 42;
+    }
+
+    struct child_args ca = {
+        .rootfsPath = rootfsPath,
+        .host_uid = getuid(),
+        .host_gid = getgid(),
+    };
+
+    pid_t pid = clone(child, stack + STACK_SIZE,
+                      clone_flags | SIGCHLD,
+                      &ca);
+    if (pid == -1) {
+        perror("clone");
+        free(stack);
+        return 42;
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    free(stack);
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+    return 1;
 }
 
 int main(int argc, char **argv) {
@@ -331,22 +386,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    char *stack = malloc(STACK_SIZE);
-    if (!stack) {
-        perror("malloc");
-        return 1;
+    unsigned long flags = CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS |
+                          CLONE_NEWNET | CLONE_NEWIPC | CLONE_NEWCGROUP;
+
+    int ret = run_child(argv[1], flags | CLONE_NEWUSER);
+    if (ret == 42) {
+        fprintf(stderr, "qo-init: user namespace unavailable, continuing without it\n");
+        setenv("QO_NO_USERNS", "1", 1);
+        ret = run_child(argv[1], flags);
     }
 
-    pid_t pid = clone(child, stack + STACK_SIZE,
-                      CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET | CLONE_NEWIPC | CLONE_NEWCGROUP | SIGCHLD,
-                      (void *)argv[1]);
-    if (pid == -1) {
-        perror("clone");
-        free(stack);
-        return 1;
-    }
-
-    waitpid(pid, NULL, 0);
-    free(stack);
-    return 0;
+    return ret;
 }

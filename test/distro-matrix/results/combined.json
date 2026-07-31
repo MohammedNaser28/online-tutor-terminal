@@ -8,7 +8,7 @@
       "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
       "apparmor_userns": "not_installed",
       "libraries": "libseccomp.so.2=found libcap.so.2=found ",
-      "pass": 8,
+      "pass": 9,
       "fail": 0,
       "failures": []
     },
@@ -20,7 +20,7 @@
       "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
       "apparmor_userns": "not_installed",
       "libraries": "libseccomp.so.2=found libcap.so.2=found ",
-      "pass": 8,
+      "pass": 9,
       "fail": 0,
       "failures": []
     },
@@ -32,7 +32,7 @@
       "unprivileged_userns_clone": "not_present",
       "apparmor_userns": "not_installed",
       "libraries": "libseccomp.so.2=found libcap.so.2=found ",
-      "pass": 8,
+      "pass": 9,
       "fail": 0,
       "failures": []
     },
@@ -44,7 +44,7 @@
       "unprivileged_userns_clone": "not_present",
       "apparmor_userns": "not_installed",
       "libraries": "libseccomp.so.2=found libcap.so.2=found ",
-      "pass": 8,
+      "pass": 9,
       "fail": 0,
       "failures": []
     },
@@ -56,7 +56,7 @@
       "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
       "apparmor_userns": "not_installed",
       "libraries": "libseccomp.so.2=found libcap.so.2=found ",
-      "pass": 8,
+      "pass": 9,
       "fail": 0,
       "failures": []
     }

@@ -101,22 +101,23 @@ def test_qo_meta():
     assert data["levels"][0]["validator"]["type"] == "file_exists"
     assert data["levels"][1]["validator"]["type"] == "file_contains"
 
-# ── 3. Capability dropping (known bug: CLONE_NEWUSER missing) ───────────
+# ── 3. Capability dropping (no_new_privs + capset => CapEff=0) ────────
 def test_cap_drop():
     s = SandboxSession()
     s.read_until(":~# ")
     s.write("grep CapEff /proc/self/status")
     try:
-        out = s.read_until("0000000000000000", timeout=5)
-        assert "0000000000000000" in out, "Should not reach here"
+        s.read_until("0000000000000000", timeout=5)
     except TimeoutError:
         buf = s.stdout_buf.decode(errors='replace')
+        val = "?"
         for line in buf.split("\n"):
-            if "CapEff" in line:
+            if line.strip().startswith("CapEff"):
                 val = line.split(":")[-1].strip()
-                sys.stdout.write(f"  (CapEff={val})\n")
+        s.close()
+        assert False, f"CapEff not zero: {val}"
     s.close()
-    sys.stdout.write("  XFAIL: CLONE_NEWUSER not yet implemented\n")
+    sys.stdout.write("  PASS: capabilities dropped (no_new_privs + capset)\n")
 
 # ── 4. Cgroup limits ───────────────────────────────────────────────────
 def test_cgroup_limits():
