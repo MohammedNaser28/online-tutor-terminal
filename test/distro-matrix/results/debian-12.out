@@ -1,0 +1,52 @@
+Unable to find image 'debian:12' locally
+12: Pulling from library/debian
+c4013e1e3834: Pulling fs layer
+c4013e1e3834: Verifying Checksum
+c4013e1e3834: Download complete
+c4013e1e3834: Pull complete
+Digest: sha256:9344f8b8992482f80cba753f323adeaf17690076c095ccff6cc9536be98185dc
+Status: Downloaded newer image for debian:12
+=== Installing dependencies ===
+done.
+=== Pre-checks ===
+RESULT:CGROUP_V:cgroup2fs
+RESULT:KERNEL:6.18.36-1-lts
+RESULT:USERNS:not_present
+RESULT:APPARMOR:not_installed
+RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
+=== Building qo-init from source ===
+qo-init build complete
+=== Running integration tests ===
+
+=== 1: sandbox boot (shell, whoami, id) ===
+  PASS
+
+=== 2: qo meta output (JSON correctness) ===
+  PASS
+
+=== 3: capability dropping (CapEff=0) ===
+  (CapEff=~# grep CapEff /proc/self/status)
+  (CapEff=000001ffffffffff)
+  XFAIL: CLONE_NEWUSER not yet implemented
+  PASS
+
+=== 4: cgroup limits (memory/pids/cpu) ===
+  PASS
+
+=== 5: duration enforcement (5s) ===
+  (exit: 1)
+  PASS
+
+=== 6: seccomp (log mode, shell functional) ===
+  PASS
+
+=== 7: anti-cheat forgery resistance ===
+  PASS
+
+=== 8: busybox applet symlinks ===
+  PASS
+
+=== RESULTS: 8/8 passed, 0 failed ===
+RESULT:PASS:8
+RESULT:FAIL:0
+=== Done ===

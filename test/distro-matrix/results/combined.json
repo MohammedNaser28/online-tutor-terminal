@@ -1,0 +1,66 @@
+{
+  "distros": [
+    {
+      "distro": "Ubuntu 22.04",
+      "key": "ubuntu-22.04",
+      "kernel": "6.18.36-1-lts",
+      "cgroup_version": "cgroup2fs",
+      "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
+      "apparmor_userns": "not_installed",
+      "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+      "pass": 8,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "distro": "Ubuntu 24.04",
+      "key": "ubuntu-24.04",
+      "kernel": "6.18.36-1-lts",
+      "cgroup_version": "cgroup2fs",
+      "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
+      "apparmor_userns": "not_installed",
+      "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+      "pass": 8,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "distro": "Debian 12",
+      "key": "debian-12",
+      "kernel": "6.18.36-1-lts",
+      "cgroup_version": "cgroup2fs",
+      "unprivileged_userns_clone": "not_present",
+      "apparmor_userns": "not_installed",
+      "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+      "pass": 8,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "distro": "Fedora (latest)",
+      "key": "fedora-latest",
+      "kernel": "6.18.36-1-lts",
+      "cgroup_version": "cgroup2fs",
+      "unprivileged_userns_clone": "not_present",
+      "apparmor_userns": "not_installed",
+      "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+      "pass": 8,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "distro": "Arch Linux (baseline)",
+      "key": "arch-latest",
+      "kernel": "6.18.36-1-lts",
+      "cgroup_version": "cgroup2fs",
+      "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
+      "apparmor_userns": "not_installed",
+      "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+      "pass": 8,
+      "fail": 0,
+      "failures": []
+    }
+  ],
+  "pop_os_note": "Proxied via Ubuntu 24.04 \u2014 not independently verified",
+  "known_bug_cap_drop": "CLONE_NEWUSER not yet implemented; CapEff != 0 on all distros"
+}

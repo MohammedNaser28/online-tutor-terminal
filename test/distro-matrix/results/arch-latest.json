@@ -1,0 +1,12 @@
+{
+  "distro": "Arch Linux (baseline)",
+  "key": "arch-latest",
+  "kernel": "6.18.36-1-lts",
+  "cgroup_version": "cgroup2fs",
+  "unprivileged_userns_clone": "kernel.unprivileged_userns_clone = 1",
+  "apparmor_userns": "not_installed",
+  "libraries": "libseccomp.so.2=found libcap.so.2=found ",
+  "pass": 8,
+  "fail": 0,
+  "failures": []
+}

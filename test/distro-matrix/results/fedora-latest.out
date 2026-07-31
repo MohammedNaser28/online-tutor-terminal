@@ -1,0 +1,44 @@
+=== Installing dependencies ===
+[31/31] Removing glibc-common-0:2.43-5. 100% |  18.0   B/s |  50.0   B |  00m03s
+=== Pre-checks ===
+RESULT:CGROUP_V:cgroup2fs
+RESULT:KERNEL:6.18.36-1-lts
+RESULT:USERNS:not_present
+RESULT:APPARMOR:not_installed
+RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
+=== Building qo-init from source ===
+qo-init build complete
+=== Running integration tests ===
+
+=== 1: sandbox boot (shell, whoami, id) ===
+  PASS
+
+=== 2: qo meta output (JSON correctness) ===
+  PASS
+
+=== 3: capability dropping (CapEff=0) ===
+  (CapEff=~# grep CapEff /proc/self/status)
+  (CapEff=000001ffffffffff)
+  XFAIL: CLONE_NEWUSER not yet implemented
+  PASS
+
+=== 4: cgroup limits (memory/pids/cpu) ===
+  PASS
+
+=== 5: duration enforcement (5s) ===
+  (exit: 1)
+  PASS
+
+=== 6: seccomp (log mode, shell functional) ===
+  PASS
+
+=== 7: anti-cheat forgery resistance ===
+  PASS
+
+=== 8: busybox applet symlinks ===
+  PASS
+
+=== RESULTS: 8/8 passed, 0 failed ===
+RESULT:PASS:8
+RESULT:FAIL:0
+=== Done ===

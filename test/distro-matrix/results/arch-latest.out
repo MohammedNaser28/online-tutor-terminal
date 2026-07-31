@@ -1,0 +1,45 @@
+=== Installing dependencies ===
+(1/1) Arming ConditionNeedsUpdate...
+=== Pre-checks ===
+RESULT:CGROUP_V:cgroup2fs
+RESULT:KERNEL:6.18.36-1-lts
+RESULT:USERNS:kernel.unprivileged_userns_clone = 1
+RESULT:APPARMOR:not_installed
+RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
+=== Building qo-init from source ===
+ ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=2dc6e0ae0a315e40c668202bfed8ad995d7acfee, for GNU/Linux 4.4.0, not stripped
+qo-init build complete
+=== Running integration tests ===
+
+=== 1: sandbox boot (shell, whoami, id) ===
+  PASS
+
+=== 2: qo meta output (JSON correctness) ===
+  PASS
+
+=== 3: capability dropping (CapEff=0) ===
+  (CapEff=~# grep CapEff /proc/self/status)
+  (CapEff=000001ffffffffff)
+  XFAIL: CLONE_NEWUSER not yet implemented
+  PASS
+
+=== 4: cgroup limits (memory/pids/cpu) ===
+  PASS
+
+=== 5: duration enforcement (5s) ===
+  (exit: 1)
+  PASS
+
+=== 6: seccomp (log mode, shell functional) ===
+  PASS
+
+=== 7: anti-cheat forgery resistance ===
+  PASS
+
+=== 8: busybox applet symlinks ===
+  PASS
+
+=== RESULTS: 8/8 passed, 0 failed ===
+RESULT:PASS:8
+RESULT:FAIL:0
+=== Done ===

@@ -1,0 +1,51 @@
+=== Installing dependencies ===
+Processing triggers for libc-bin (2.35-0ubuntu3.13) ...
+=== Pre-checks ===
+RESULT:CGROUP_V:cgroup2fs
+RESULT:KERNEL:6.18.36-1-lts
+RESULT:USERNS:kernel.unprivileged_userns_clone = 1
+RESULT:APPARMOR:not_installed
+RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
+=== Building qo-init from source ===
+/src/qo-init.c: In function 'switch_root':
+/src/qo-init.c:66:43: warning: '/.pivot_old' directive output may be truncated writing 11 bytes into a region of size between 1 and 4096 [-Wformat-truncation=]
+   66 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
+      |                                           ^~~~~~~~~~~
+/src/qo-init.c:66:5: note: 'snprintf' output between 12 and 4107 bytes into a destination of size 4096
+   66 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+qo-init build complete
+=== Running integration tests ===
+
+=== 1: sandbox boot (shell, whoami, id) ===
+  PASS
+
+=== 2: qo meta output (JSON correctness) ===
+  PASS
+
+=== 3: capability dropping (CapEff=0) ===
+  (CapEff=~# grep CapEff /proc/self/status)
+  (CapEff=000001ffffffffff)
+  XFAIL: CLONE_NEWUSER not yet implemented
+  PASS
+
+=== 4: cgroup limits (memory/pids/cpu) ===
+  PASS
+
+=== 5: duration enforcement (5s) ===
+  (exit: 1)
+  PASS
+
+=== 6: seccomp (log mode, shell functional) ===
+  PASS
+
+=== 7: anti-cheat forgery resistance ===
+  PASS
+
+=== 8: busybox applet symlinks ===
+  PASS
+
+=== RESULTS: 8/8 passed, 0 failed ===
+RESULT:PASS:8
+RESULT:FAIL:0
+=== Done ===
