@@ -992,7 +992,7 @@ func TestPollChallengeRequests_InitScript(t *testing.T) {
 
 	levels := []ChallengeLevel{{
 		ID:         1,
-		Title:      "Init Test",
+		Title:      "InitTest",
 		Question:   "Q",
 		InitScript: "echo 'created_by_init' > marker.txt",
 	}}
