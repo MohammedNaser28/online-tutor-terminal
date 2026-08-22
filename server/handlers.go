@@ -419,14 +419,18 @@ func (s *Server) handleChallengeGo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	level := session.Challenge.Current()
-	passed, err := RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, "", level.CheckScript)
+	passed, output, err := RunCheckScript(session.RootfsPath, level.ID, "", level.CheckScript)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Check failed: " + err.Error(), "completed": session.Challenge.Completed})
 		return
 	}
 
 	if !passed {
-		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": "Not quite right. Try again!", "completed": session.Challenge.Completed})
+		msg := "Not quite right. Try again!"
+		if output != "" {
+			msg = output
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"passed": false, "message": msg, "completed": session.Challenge.Completed})
 		return
 	}
 

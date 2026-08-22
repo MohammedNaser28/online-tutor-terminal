@@ -309,7 +309,7 @@ func TestRunCheckScript_Basic(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	passed, err := RunCheckScript(rootfs, 1, "", "exit 0")
+	passed, _, err := RunCheckScript(rootfs, 1, "", "exit 0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestRunCheckScript_Basic(t *testing.T) {
 		t.Error("expected passed=true for exit 0")
 	}
 
-	passed, err = RunCheckScript(rootfs, 1, "", "exit 1")
+	passed, _, err = RunCheckScript(rootfs, 1, "", "exit 1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestRunCheckScript_EmptyScript(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	passed, err := RunCheckScript(rootfs, 1, "", "")
+	passed, _, err := RunCheckScript(rootfs, 1, "", "")
 	if err != nil {
 		t.Fatalf("expected nil error: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestRunCheckScript_StdinPassthrough(t *testing.T) {
 	// stdinInput is appended to the script and executed as additional shell
 	// commands. A script that does not exit can be followed by stdinInput lines.
 	script := "true"
-	passed, err := RunCheckScript(rootfs, 1, "exit 42", script)
+	passed, _, err := RunCheckScript(rootfs, 1, "exit 42", script)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

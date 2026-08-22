@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -51,17 +52,18 @@ type ChallengeMetadata struct {
 }
 
 type ChallengeState struct {
-	CurrentLevel int
-	Levels       []ChallengeLevel
-	Completed    bool
-	initRan      map[int]bool // levels whose init.sh has been run
+	CurrentLevel    int
+	Levels          []ChallengeLevel
+	Completed       bool
+	initRan         map[int]bool // levels whose init.sh has been run
+	completedLevels map[int]bool // levels that have been completed
 }
 
 func NewChallengeState(levels []ChallengeLevel) *ChallengeState {
 	if len(levels) == 0 {
-		return &ChallengeState{Levels: []ChallengeLevel{}, initRan: map[int]bool{}}
+		return &ChallengeState{Levels: []ChallengeLevel{}, initRan: map[int]bool{}, completedLevels: map[int]bool{}}
 	}
-	return &ChallengeState{CurrentLevel: 0, Levels: levels, initRan: map[int]bool{}}
+	return &ChallengeState{CurrentLevel: 0, Levels: levels, initRan: map[int]bool{}, completedLevels: map[int]bool{}}
 }
 
 func (c *ChallengeState) Current() ChallengeLevel {
@@ -82,9 +84,37 @@ func (c *ChallengeState) Progress() int {
 	return c.CurrentLevel
 }
 
-func (c *ChallengeState) Advance() bool {
-	if c.CurrentLevel+1 >= len(c.Levels) {
+func (c *ChallengeState) SetLevel(levelID int) bool {
+	for i, lv := range c.Levels {
+		if lv.ID == levelID || i+1 == levelID {
+			c.CurrentLevel = i
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ChallengeState) MarkCompleted(levelID int) {
+	if c.completedLevels == nil {
+		c.completedLevels = make(map[int]bool)
+	}
+	c.completedLevels[levelID] = true
+
+	allDone := true
+	for _, lv := range c.Levels {
+		if !c.completedLevels[lv.ID] {
+			allDone = false
+			break
+		}
+	}
+	if allDone && len(c.Levels) > 0 {
 		c.Completed = true
+	}
+}
+
+func (c *ChallengeState) Advance() bool {
+	c.MarkCompleted(c.Current().ID)
+	if c.CurrentLevel+1 >= len(c.Levels) {
 		return false
 	}
 	c.CurrentLevel++
@@ -95,9 +125,11 @@ func (c *ChallengeState) Status() map[string]any {
 	levels := make([]map[string]any, len(c.Levels))
 	for i, lv := range c.Levels {
 		levels[i] = map[string]any{
-			"id":       lv.ID,
-			"title":    lv.Title,
-			"completed": i < c.CurrentLevel,
+			"id":        lv.ID,
+			"title":     lv.Title,
+			"completed": c.completedLevels[lv.ID],
+			"unlocked":  true,
+			"active":    i == c.CurrentLevel,
 		}
 	}
 	return map[string]any{
@@ -150,32 +182,77 @@ func normalizeMeta(meta *ChallengeMetadata) {
 	}
 }
 
+func findLevelDir(rootfsPath string, levelID int) string {
+	baseTmp := filepath.Join(rootfsPath, "rootfs", "tmp")
+	candidates := []string{
+		fmt.Sprintf("level%d", levelID),
+		fmt.Sprintf("Level-%d", levelID),
+		fmt.Sprintf("Level%d", levelID),
+		fmt.Sprintf("level-%d", levelID),
+	}
+	for _, c := range candidates {
+		p := filepath.Join(baseTmp, c)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return filepath.Join(baseTmp, fmt.Sprintf("level%d", levelID))
+}
+
+func parseLevelID(name string) int {
+	var id int
+	if _, err := fmt.Sscanf(name, "level%d", &id); err == nil && id > 0 {
+		return id
+	}
+	if _, err := fmt.Sscanf(name, "Level-%d", &id); err == nil && id > 0 {
+		return id
+	}
+	if _, err := fmt.Sscanf(name, "Level%d", &id); err == nil && id > 0 {
+		return id
+	}
+	if _, err := fmt.Sscanf(name, "level-%d", &id); err == nil && id > 0 {
+		return id
+	}
+	return 0
+}
+
 func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 	for i := range levels {
 		lvl := &levels[i]
-		lvlDir := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID))
 
 		// Wait for level directory to exist (archive extraction may still be in progress).
+		var lvlDir string
 		for attempt := 0; attempt < 30; attempt++ {
-			if _, err := os.Stat(lvlDir); err == nil {
+			candidate := findLevelDir(rootfsPath, lvl.ID)
+			if _, err := os.Stat(candidate); err == nil {
+				lvlDir = candidate
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 
+		if lvlDir == "" {
+			lvlDir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID))
+		}
+
 		// Read and remove each file with per-file retry — the directory
 		// may exist before all its contents are written.
 		readFile := func(path, label string, store *string) {
-			for attempt := 0; attempt < 20; attempt++ {
+			for attempt := 0; attempt < 10; attempt++ {
 				data, err := os.ReadFile(path)
 				if err == nil {
-					*store = string(data)
+					if len(data) > 0 || *store == "" {
+						*store = string(data)
+					}
 					if err := os.Remove(path); err == nil {
 						log.Printf("secured %s: level=%d", label, lvl.ID)
 					}
 					return
 				}
-				time.Sleep(150 * time.Millisecond)
+				if os.IsNotExist(err) {
+					return
+				}
+				time.Sleep(50 * time.Millisecond)
 			}
 		}
 
@@ -192,7 +269,7 @@ func runInitScript(rootfsPath string, level ChallengeLevel) error {
 		return nil
 	}
 	cmd := exec.Command("/bin/bash", "-s", "--")
-	cmd.Dir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", level.ID))
+	cmd.Dir = findLevelDir(rootfsPath, level.ID)
 	cmd.Stdin = strings.NewReader(level.InitScript + "\n")
 	cmd.Stdout = nil
 	cmd.Stderr = nil
@@ -203,14 +280,15 @@ func runInitScript(rootfsPath string, level ChallengeLevel) error {
 	return nil
 }
 
-func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScript string) (bool, error) {
+func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScript string) (bool, string, error) {
 	if checkScript == "" {
-		return false, nil
+		return false, "No check script found for this level.", nil
 	}
 	cmd := exec.Command("/bin/bash", "-s", "--")
-	cmd.Dir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", levelID))
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd.Dir = findLevelDir(rootfsPath, levelID)
+	var outBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &outBuf
 	var sb strings.Builder
 	sb.WriteString("set -e\n")
 	sb.WriteString(checkScript)
@@ -220,13 +298,15 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 		sb.WriteByte('\n')
 	}
 	cmd.Stdin = strings.NewReader(sb.String())
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	output := strings.TrimSpace(outBuf.String())
+	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode() == 0, nil
+			return exitErr.ExitCode() == 0, output, nil
 		}
-		return false, err
+		return false, output, err
 	}
-	return true, nil
+	return true, output, nil
 }
 
 func runValidator(rootfsPath string, level ChallengeLevel, answer string) (bool, error) {
@@ -236,7 +316,7 @@ func runValidator(rootfsPath string, level ChallengeLevel, answer string) (bool,
 		return false, fmt.Errorf("no validator")
 	}
 
-	levelDir := filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", level.ID))
+	levelDir := findLevelDir(rootfsPath, level.ID)
 
 	switch v.Type {
 	case ValidatorFlag:
@@ -311,8 +391,8 @@ func DiscoverLevelsFromRootfs(rootfsPath string) ([]ChallengeLevel, error) {
 					continue
 				}
 				name := e.Name()
-				var id int
-				if _, err := fmt.Sscanf(name, "level%d", &id); err != nil || id <= 0 {
+				id := parseLevelID(name)
+				if id <= 0 {
 					continue
 				}
 
@@ -426,91 +506,153 @@ func (s *Server) pollChallengeRequests(session *Session) {
 			_ = os.WriteFile(reqFile, []byte{}, 0644)
 
 			log.Printf("challenge req session=%s action=%q", session.Token, action)
-			goAnswer := ""
-			if strings.HasPrefix(action, "go:") {
-				goAnswer = action[3:]
-				action = "go"
+			arg := ""
+			if idx := strings.IndexByte(action, ':'); idx >= 0 {
+				arg = strings.TrimSpace(action[idx+1:])
+				action = strings.TrimSpace(action[:idx])
 			}
 
-		switch action {
-		case "quest":
-			if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-				current := session.Challenge.Current()
-				levelID := session.Challenge.CurrentLevel + 1
+			parseArgLevel := func(s string) int {
+				if s == "" {
+					return 0
+				}
+				var num int
+				if _, err := fmt.Sscanf(s, "level%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "Level-%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "level-%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "%d", &num); err == nil && num > 0 {
+					return num
+				}
+				return 0
+			}
 
-				// Run init.sh on first access to this level (creates files, env, flags).
-				if !session.Challenge.initRan[levelID] && current.InitScript != "" {
-					if err := runInitScript(session.RootfsPath, current); err != nil {
-						log.Printf("init.sh failed: level=%d err=%v", levelID, err)
+			switch action {
+			case "quest":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
+						session.Challenge.SetLevel(targetLvl)
 					}
-					session.Challenge.initRan[levelID] = true
+					current := session.Challenge.Current()
+					levelID := session.Challenge.CurrentLevel + 1
+
+					// Run init.sh on first access to this level.
+					if !session.Challenge.initRan[current.ID] && current.InitScript != "" {
+						if err := runInitScript(session.RootfsPath, current); err != nil {
+							log.Printf("init.sh failed: level=%d err=%v", current.ID, err)
+						}
+						session.Challenge.initRan[current.ID] = true
+					}
+
+					resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
+						levelID, session.Challenge.Total(),
+						current.Title, current.Question))
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
 
-				resp = []byte(fmt.Sprintf("\033[96m━━━ Level %d/%d\033[0m  %s\n%s",
-					levelID, session.Challenge.Total(),
-					session.Title, current.Question))
-			} else {
-				resp = []byte("\033[33mNo challenge loaded.\033[0m")
-			}
+			case "level", "select":
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
+						if session.Challenge.SetLevel(targetLvl) {
+							current := session.Challenge.Current()
+							resp = []byte(fmt.Sprintf("\033[32mSwitched to Level %d: %s\033[0m\n\n%s",
+								session.Challenge.CurrentLevel+1, current.Title, current.Question))
+						} else {
+							resp = []byte(fmt.Sprintf("\033[31mInvalid level %d. Total levels: %d\033[0m", targetLvl, session.Challenge.Total()))
+						}
+					} else {
+						resp = []byte(fmt.Sprintf("\033[33mCurrent level: %d/%d. Usage: level <number>\033[0m",
+							session.Challenge.CurrentLevel+1, session.Challenge.Total()))
+					}
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
+				}
+
 			case "hint":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
+						session.Challenge.SetLevel(targetLvl)
+					}
 					current := session.Challenge.Current()
 					hint := current.Hint
 					if hint == "" {
 						hint = "No hint available."
 					}
-					resp = []byte(fmt.Sprintf("\033[33m💡 Hint: %s\033[0m", hint))
+					resp = []byte(fmt.Sprintf("\033[33m💡 Hint (Level %d): %s\033[0m", session.Challenge.CurrentLevel+1, hint))
 				} else {
 					resp = []byte("\033[33mNo hint available.\033[0m")
 				}
+
 			case "go":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
+						session.Challenge.SetLevel(targetLvl)
+						arg = ""
+					}
+
 					level := session.Challenge.Current()
 					var passed bool
+					var output string
 					var err error
 
-					// Try pure Go validator first (zero process overhead).
-					passed, err = runValidator(session.RootfsPath, level, goAnswer)
-					if err != nil && level.CheckScript != "" {
-						// Fall back to check.sh script (only if no validator matched).
-						passed, err = RunCheckScript(session.RootfsPath, session.Challenge.CurrentLevel+1, goAnswer, level.CheckScript)
+					if level.CheckScript != "" {
+						passed, output, err = RunCheckScript(session.RootfsPath, level.ID, arg, level.CheckScript)
+					} else if level.Validator != nil {
+						passed, err = runValidator(session.RootfsPath, level, arg)
+					}
+
+					var outSb strings.Builder
+					if output != "" {
+						outSb.WriteString(output)
+						outSb.WriteByte('\n')
 					}
 
 					if err != nil {
-						resp = []byte(fmt.Sprintf("\033[31m❌ Check failed: %s\033[0m", err.Error()))
+						outSb.WriteString(fmt.Sprintf("\033[31m❌ Check error: %s\033[0m", err.Error()))
 					} else if passed {
+						session.Challenge.MarkCompleted(level.ID)
 						session.IncrementScore()
-						advanced := session.Challenge.Advance()
-						if advanced {
-							resp = []byte(fmt.Sprintf("\033[32m✅ Correct! Advancing to level %d...\033[0m", session.Challenge.CurrentLevel+1))
-						} else {
-							resp = []byte(fmt.Sprintf("\033[32m🎉 Correct! You completed all levels!\033[0m"))
-						}
+						outSb.WriteString(fmt.Sprintf("\033[32m🎉 Level %d Passed!\033[0m", level.ID))
 					} else {
-						resp = []byte("\033[31m❌ Not quite right. Try again!\033[0m")
+						outSb.WriteString(fmt.Sprintf("\033[31m❌ Level %d Incomplete. Try again!\033[0m", level.ID))
 					}
+					resp = []byte(outSb.String())
 				} else {
 					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
+
 			case "map":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-					st := session.Challenge.Status()
-					cur, curOk := st["current_level"].(int)
-					tot, totOk := st["total_levels"].(int)
-					title, titleOk := st["current_title"].(string)
-					if !curOk || !totOk || !titleOk {
-						resp = []byte("\033[31m❌ Failed to read challenge status.\033[0m")
-					} else {
-						resp = []byte(fmt.Sprintf("\033[96m━━━ Map %d/%d\033[0m  %s", cur+1, tot, title))
+					var mapSb strings.Builder
+					mapSb.WriteString("\033[96m━━━ Challenge Level Map ━━━\033[0m\n")
+					for i, lv := range session.Challenge.Levels {
+						statusStr := "\033[33m[Unlocked]\033[0m"
+						if session.Challenge.completedLevels[lv.ID] {
+							statusStr = "\033[32m[Completed]\033[0m"
+						}
+						activeMarker := "  "
+						if i == session.Challenge.CurrentLevel {
+							activeMarker = "\033[96m▶ \033[0m"
+						}
+						mapSb.WriteString(fmt.Sprintf("%sLevel %d: %s %s\n", activeMarker, lv.ID, lv.Title, statusStr))
 					}
+					mapSb.WriteString("\n\033[90mTip: Type 'level <number>' or 'quest <number>' to jump to any level.\033[0m")
+					resp = []byte(mapSb.String())
 				} else {
 					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
+
 			case "status":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 					current := session.Challenge.Current()
 					status := "\033[33mIn progress\033[0m"
-					if session.Challenge.Completed {
+					if session.Challenge.completedLevels[current.ID] {
 						status = "\033[32m✅ Completed\033[0m"
 					}
 					resp = []byte(fmt.Sprintf("\033[96mLevel %d/%d\033[0m  %s  %s",
@@ -519,10 +661,13 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				} else {
 					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}
+
 			case "logo":
 				resp = []byte("\033[36mQO Logo\033[0m")
+
 			case "help":
-				resp = []byte("\033[1mCommands: quest, hint, go, map, status, logo, help\033[0m")
+				resp = []byte("\033[1mCommands:\n  quest [n]    - View question for current or level n\n  level <n>    - Switch to level n\n  go           - Run check script for current level\n  hint         - Show hint for current level\n  map          - List all levels\n  status       - Show session progress\033[0m")
+
 			default:
 				resp, _ = json.Marshal(map[string]string{"error": "unknown action: " + action})
 			}

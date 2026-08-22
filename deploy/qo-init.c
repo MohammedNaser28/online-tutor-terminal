@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/sysmacros.h>
 #include <net/if.h>
 #include <linux/capability.h>
 #include <seccomp.h>
@@ -74,9 +75,63 @@ static void mount_pseudo_fs(const char *base) {
     }
 
     snprintf(mountPath, sizeof(mountPath), "%s/dev", base);
-    if (mount("devtmpfs", mountPath, "devtmpfs", MS_NOSUID | MS_NOEXEC, NULL) != 0) {
+    /* devtmpfs is not mountable inside a user namespace, so use a tmpfs
+       and create the device nodes manually. Nodes made with mknod belong
+       to this namespace and are actually openable, unlike rootfs device
+       nodes created in the init user namespace. */
+    if (mount("tmpfs", mountPath, "tmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755,size=65536k") != 0) {
         if (errno != EBUSY) {
-            perror("mount /dev (devtmpfs)");
+            perror("mount /dev (tmpfs)");
+        }
+    }
+
+    static const struct {
+        const char *name;
+        mode_t mode;
+        unsigned int major;
+        unsigned int minor;
+    } nodes[] = {
+        {"null",    S_IFCHR | 0666, 1, 3},
+        {"zero",    S_IFCHR | 0666, 1, 5},
+        {"full",    S_IFCHR | 0666, 1, 7},
+        {"random",  S_IFCHR | 0666, 1, 8},
+        {"urandom", S_IFCHR | 0666, 1, 9},
+        {"tty",     S_IFCHR | 0666, 5, 0},
+        {"console", S_IFCHR | 0600, 5, 1},
+        {"ptmx",    S_IFCHR | 0666, 5, 2},
+    };
+    for (size_t i = 0; i < sizeof(nodes) / sizeof(nodes[0]); i++) {
+        snprintf(mountPath, sizeof(mountPath), "%s/dev/%s", base, nodes[i].name);
+        if (mknod(mountPath, nodes[i].mode, makedev(nodes[i].major, nodes[i].minor)) != 0) {
+            if (errno != EEXIST && errno != EPERM) {
+                perror(mountPath);
+            }
+        }
+    }
+
+    static const struct {
+        const char *name;
+        const char *target;
+    } symlinks[] = {
+        {"fd",     "/proc/self/fd"},
+        {"stdin",  "/proc/self/fd/0"},
+        {"stdout", "/proc/self/fd/1"},
+        {"stderr", "/proc/self/fd/2"},
+    };
+    for (size_t i = 0; i < sizeof(symlinks) / sizeof(symlinks[0]); i++) {
+        snprintf(mountPath, sizeof(mountPath), "%s/dev/%s", base, symlinks[i].name);
+        if (symlink(symlinks[i].target, mountPath) != 0) {
+            if (errno != EEXIST) {
+                perror(mountPath);
+            }
+        }
+    }
+
+    snprintf(mountPath, sizeof(mountPath), "%s/dev/shm", base);
+    mkdir(mountPath, 0777);
+    if (mount("tmpfs", mountPath, "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NODEV, "mode=1777,size=65536k") != 0) {
+        if (errno != EBUSY) {
+            perror("mount /dev/shm");
         }
     }
 
@@ -246,20 +301,19 @@ static int spawn_shell(const char *rootfsPath) {
 
         FILE *bashrc = fopen("/root/.bashrc", "a");
         if (bashrc) {
-            fprintf(bashrc, "\n");
+            fprintf(bashrc, "\nexport LANG=C.UTF-8\nexport LC_ALL=C.UTF-8\n");
             fprintf(bashrc, "__qo_challenge() {\n");
             fprintf(bashrc, "    local action=\"$1\"\n");
-            fprintf(bashrc, "    if [ \"$action\" = \"go\" ]; then\n");
-            fprintf(bashrc, "        local ans\n");
-            fprintf(bashrc, "        read -p \"Your answer: \" ans\n");
-            fprintf(bashrc, "        action=\"go:${ans}\"\n");
+            fprintf(bashrc, "    shift\n");
+            fprintf(bashrc, "    local args=\"$*\"\n");
+            fprintf(bashrc, "    if [ -n \"$args\" ]; then\n");
+            fprintf(bashrc, "        action=\"${action}:${args}\"\n");
             fprintf(bashrc, "    fi\n");
             fprintf(bashrc, "    local req=\"/tmp/.qo-challenge-req\"\n");
             fprintf(bashrc, "    local resp=\"/tmp/.qo-challenge-resp\"\n");
             fprintf(bashrc, "    local tmpReq=\"/tmp/.qo-challenge-req.tmp\"\n");
             fprintf(bashrc, "    printf '%%s' \"$action\" > \"$tmpReq\"\n");
             fprintf(bashrc, "    mv -f \"$tmpReq\" \"$req\"\n");
-            fprintf(bashrc, "    echo \"__qo_debug action=$action\" > /tmp/.qo-challenge-debug\n");
             fprintf(bashrc, "    local i=1\n");
             fprintf(bashrc, "    while [ $i -le 50 ]; do\n");
             fprintf(bashrc, "        if [ -s \"$resp\" ]; then\n");
@@ -273,6 +327,8 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    echo \"Error: server not responding\"\n");
             fprintf(bashrc, "}\n");
             fprintf(bashrc, "alias quest='__qo_challenge quest'\n");
+            fprintf(bashrc, "alias level='__qo_challenge level'\n");
+            fprintf(bashrc, "alias select='__qo_challenge select'\n");
             fprintf(bashrc, "alias hint='__qo_challenge hint'\n");
             fprintf(bashrc, "alias go='__qo_challenge go'\n");
             fprintf(bashrc, "alias map='__qo_challenge map'\n");
