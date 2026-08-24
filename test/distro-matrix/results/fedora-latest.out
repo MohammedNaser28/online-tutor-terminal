@@ -1,5 +1,5 @@
 === Installing dependencies ===
-[31/31] Removing glibc-common-0:2.43-5. 100% |  51.0   B/s |  50.0   B |  00m01s
+[31/31] Removing glibc-common-0:2.43-5. 100% | 110.0   B/s |  50.0   B |  00m00s
 === Pre-checks ===
 RESULT:CGROUP_V:cgroup2fs
 RESULT:KERNEL:6.18.36-1-lts

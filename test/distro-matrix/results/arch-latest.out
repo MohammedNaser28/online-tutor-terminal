@@ -7,7 +7,7 @@ RESULT:USERNS:kernel.unprivileged_userns_clone = 1
 RESULT:APPARMOR:not_installed
 RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
 === Building qo-init from source ===
- ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=bf57d839f161184b463365cd884d40f495d893cf, for GNU/Linux 4.4.0, not stripped
+ ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=0766d7ce420d89c1f8ffb73a832b3c2909d5e585, for GNU/Linux 4.4.0, not stripped
 qo-init build complete
 === Running integration tests ===
 

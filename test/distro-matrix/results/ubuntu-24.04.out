@@ -8,11 +8,11 @@ RESULT:APPARMOR:not_installed
 RESULT:LIBS:libseccomp.so.2=found libcap.so.2=found 
 === Building qo-init from source ===
 /src/qo-init.c: In function 'switch_root':
-/src/qo-init.c:96:43: warning: '/.pivot_old' directive output may be truncated writing 11 bytes into a region of size between 1 and 4096 [-Wformat-truncation=]
-   96 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
+/src/qo-init.c:151:43: warning: '/.pivot_old' directive output may be truncated writing 11 bytes into a region of size between 1 and 4096 [-Wformat-truncation=]
+  151 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
       |                                           ^~~~~~~~~~~
-/src/qo-init.c:96:5: note: 'snprintf' output between 12 and 4107 bytes into a destination of size 4096
-   96 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
+/src/qo-init.c:151:5: note: 'snprintf' output between 12 and 4107 bytes into a destination of size 4096
+  151 |     snprintf(oldRoot, sizeof(oldRoot), "%s/.pivot_old", chrootPath);
       |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 qo-init build complete
 === Running integration tests ===
