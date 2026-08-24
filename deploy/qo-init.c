@@ -75,36 +75,41 @@ static void mount_pseudo_fs(const char *base) {
     }
 
     snprintf(mountPath, sizeof(mountPath), "%s/dev", base);
-    /* devtmpfs is not mountable inside a user namespace, so use a tmpfs
-       and create the device nodes manually. Nodes made with mknod belong
-       to this namespace and are actually openable, unlike rootfs device
-       nodes created in the init user namespace. */
+    /* devtmpfs is not mountable inside a user namespace, so use a tmpfs.
+       Device nodes cannot be created with mknod inside a user namespace
+       (EPERM) and device nodes on mounts made there are blocked (SB_I_NODEV),
+       so real devices are provided by bind-mounting the host nodes — the
+       same approach used by bubblewrap and rootless containers. Bind mounts
+       share the host superblock, which was mounted in the init userns. */
     if (mount("tmpfs", mountPath, "tmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755,size=65536k") != 0) {
         if (errno != EBUSY) {
             perror("mount /dev (tmpfs)");
         }
     }
 
-    static const struct {
-        const char *name;
-        mode_t mode;
-        unsigned int major;
-        unsigned int minor;
-    } nodes[] = {
-        {"null",    S_IFCHR | 0666, 1, 3},
-        {"zero",    S_IFCHR | 0666, 1, 5},
-        {"full",    S_IFCHR | 0666, 1, 7},
-        {"random",  S_IFCHR | 0666, 1, 8},
-        {"urandom", S_IFCHR | 0666, 1, 9},
-        {"tty",     S_IFCHR | 0666, 5, 0},
-        {"console", S_IFCHR | 0600, 5, 1},
-        {"ptmx",    S_IFCHR | 0666, 5, 2},
-    };
-    for (size_t i = 0; i < sizeof(nodes) / sizeof(nodes[0]); i++) {
-        snprintf(mountPath, sizeof(mountPath), "%s/dev/%s", base, nodes[i].name);
-        if (mknod(mountPath, nodes[i].mode, makedev(nodes[i].major, nodes[i].minor)) != 0) {
-            if (errno != EEXIST && errno != EPERM) {
-                perror(mountPath);
+    static const char *bind_devs[] = {"null", "zero", "full", "random", "urandom"};
+    for (size_t i = 0; i < sizeof(bind_devs) / sizeof(bind_devs[0]); i++) {
+        char hostPath[4096];
+        snprintf(hostPath, sizeof(hostPath), "/dev/%s", bind_devs[i]);
+        snprintf(mountPath, sizeof(mountPath), "%s/dev/%s", base, bind_devs[i]);
+
+        /* Placeholder regular file so the bind mount has a target. */
+        int fd = open(mountPath, O_WRONLY | O_CREAT, 0666);
+        if (fd >= 0) {
+            close(fd);
+        }
+        if (mount(hostPath, mountPath, NULL, MS_BIND, NULL) != 0) {
+            /* Fallback for non-userns mode where mknod works. */
+            if (strcmp(bind_devs[i], "null") == 0) {
+                mknod(mountPath, S_IFCHR | 0666, makedev(1, 3));
+            } else if (strcmp(bind_devs[i], "zero") == 0) {
+                mknod(mountPath, S_IFCHR | 0666, makedev(1, 5));
+            } else if (strcmp(bind_devs[i], "full") == 0) {
+                mknod(mountPath, S_IFCHR | 0666, makedev(1, 7));
+            } else if (strcmp(bind_devs[i], "random") == 0) {
+                mknod(mountPath, S_IFCHR | 0666, makedev(1, 8));
+            } else if (strcmp(bind_devs[i], "urandom") == 0) {
+                mknod(mountPath, S_IFCHR | 0666, makedev(1, 9));
             }
         }
     }
@@ -117,6 +122,8 @@ static void mount_pseudo_fs(const char *base) {
         {"stdin",  "/proc/self/fd/0"},
         {"stdout", "/proc/self/fd/1"},
         {"stderr", "/proc/self/fd/2"},
+        {"tty",    "/proc/self/fd/0"},
+        {"ptmx",   "/dev/pts/ptmx"},
     };
     for (size_t i = 0; i < sizeof(symlinks) / sizeof(symlinks[0]); i++) {
         snprintf(mountPath, sizeof(mountPath), "%s/dev/%s", base, symlinks[i].name);
@@ -287,6 +294,17 @@ static int spawn_shell(const char *rootfsPath) {
             perror("ioctl TIOCSCTTY");
         }
 
+        /* The sandbox rootfs differs from the host filesystem; never trust
+           the inherited PATH (the server may have been launched from a
+           compositor/systemd environment with host-only directories). */
+        setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", 1);
+        /* Same for HOME: the server may run via `sudo -E` which keeps the
+           invoking user's HOME, so bash would miss /root/.bashrc entirely
+           (aliases like quest/go/map live there). */
+        setenv("HOME", "/root", 1);
+        setenv("USER", "root", 1);
+        setenv("LOGNAME", "root", 1);
+
         const char *student_name = getenv("QO_STUDENT_NAME");
         if (student_name) {
             char ps1[256];
@@ -300,6 +318,9 @@ static int spawn_shell(const char *rootfsPath) {
         }
 
         FILE *bashrc = fopen("/root/.bashrc", "a");
+        if (!bashrc) {
+            perror("open /root/.bashrc");
+        }
         if (bashrc) {
             fprintf(bashrc, "\nexport LANG=C.UTF-8\nexport LC_ALL=C.UTF-8\n");
             fprintf(bashrc, "__qo_challenge() {\n");
@@ -326,11 +347,25 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    done\n");
             fprintf(bashrc, "    echo \"Error: server not responding\"\n");
             fprintf(bashrc, "}\n");
+            fprintf(bashrc, "__qo_go() {\n");
+            fprintf(bashrc, "    local level=\"level1\"\n");
+            fprintf(bashrc, "    if [ -f \"/tmp/.qo-current-level\" ]; then\n");
+            fprintf(bashrc, "        level=$(cat \"/tmp/.qo-current-level\")\n");
+            fprintf(bashrc, "    fi\n");
+            fprintf(bashrc, "    local check=\"/tmp/${level}/check.sh\"\n");
+            fprintf(bashrc, "    if [ -x \"$check\" ]; then\n");
+            fprintf(bashrc, "        if \"$check\" \"$@\"; then\n");
+            fprintf(bashrc, "            __qo_challenge solved \"$level\"\n");
+            fprintf(bashrc, "        fi\n");
+            fprintf(bashrc, "        return\n");
+            fprintf(bashrc, "    fi\n");
+            fprintf(bashrc, "    __qo_challenge go \"$@\"\n");
+            fprintf(bashrc, "}\n");
             fprintf(bashrc, "alias quest='__qo_challenge quest'\n");
             fprintf(bashrc, "alias level='__qo_challenge level'\n");
             fprintf(bashrc, "alias select='__qo_challenge select'\n");
             fprintf(bashrc, "alias hint='__qo_challenge hint'\n");
-            fprintf(bashrc, "alias go='__qo_challenge go'\n");
+            fprintf(bashrc, "alias go='__qo_go'\n");
             fprintf(bashrc, "alias map='__qo_challenge map'\n");
             fprintf(bashrc, "alias status='__qo_challenge status'\n");
             fprintf(bashrc, "alias logo='__qo_challenge logo'\n");
