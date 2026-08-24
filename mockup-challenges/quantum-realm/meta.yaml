@@ -1,0 +1,45 @@
+title: "Operation Quantum Realm"
+difficulty: "easy"
+story: |
+  ⚛️ AGENT TRANSMISSION — CLASSIFIED ⚛️
+  Welcome to the Quantum Realm, Agent. A rogue AI has scattered encrypted
+  artifacts across this Linux node. Your mission: recover the access code,
+  tame a runaway satellite daemon, and lock down the master key before
+  extraction. The realm is counting on you.
+levels:
+  - id: 1
+    title: "Level 1: The Hidden Uplink Code"
+    question: |
+      📡 MISSION BRIEFING — LEVEL 1:
+      A hidden directory somewhere under /tmp/level1 contains the uplink
+      code (it matches the format QO-XXXX-QUANTUM).
+
+      Find it, then submit the code with:
+          go QO-XXXX-QUANTUM
+    hint: "Hidden entries start with a dot. Try: find /tmp/level1 -name '*key*' or ls -laR /tmp/level1"
+
+  - id: 2
+    title: "Level 2: Taming the Satellite Daemon"
+    question: |
+      🛰️ MISSION BRIEFING — LEVEL 2:
+      A diagnostic daemon lives at /tmp/level2/satellite.sh.
+
+      1. Go to its directory:           cd /tmp/level2
+      2. Launch it in the background:   ./satellite.sh &
+      3. Watch it heartbeat into satellite.log for a moment.
+      4. Terminate it cleanly (ps / pgrep to find it, then kill).
+      5. Make sure it is no longer running.
+
+      Then type 'go' to confirm.
+    hint: "Start with './satellite.sh &'. Find it via 'pgrep -f satellite', kill with 'kill <PID>'. The log must have at least one heartbeat and the process must be dead."
+
+  - id: 3
+    title: "Level 3: Locking Down the Master Key"
+    question: |
+      🔐 MISSION BRIEFING — LEVEL 3:
+      The master key at /tmp/level3/master.key is currently world-readable.
+      Lock it down so ONLY the owner can read and write it (no group/other
+      permissions at all).
+
+      Once done, type 'go' to verify.
+    hint: "chmod 600 /tmp/level3/master.key — then verify with ls -l /tmp/level3/master.key"
