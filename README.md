@@ -111,9 +111,3 @@ Students are root in an isolated environment (user/mount/PID/net/IPC/cgroup name
 ```bash
 cd server && go test ./...
 ```
-
-## More docs
-
-- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — deep architecture/security audit
-- [`CHALLENGE_IPC.md`](CHALLENGE_IPC.md) — shell↔server IPC protocol
-- [`qo/README.md`](qo/) — upstream qo CLI docs
