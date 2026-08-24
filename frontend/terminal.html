@@ -26,12 +26,14 @@ body {
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 #app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
 }
 /* Loading overlay */
 #loading-overlay {
@@ -367,8 +369,39 @@ body {
   #mobile-keys { display: flex; }
   #mobile-toggle { display: none; }
   #header-bar { padding: 8px 12px; flex-wrap: wrap; }
-  #info-box { font-size: 12px; gap: 10px; }
+  #info-box { font-size: 12px; gap: 10px; flex-wrap: wrap; }
    #terminal-wrapper { padding: 8px; }
+
+  /* Hadith gate */
+  #hadith-gate { padding: 16px; }
+  .hadith-card {
+    padding: 28px 20px 24px;
+    border-radius: 12px;
+    max-width: 100%;
+  }
+  .hadith-text { font-size: 20px; line-height: 1.9; }
+  .hadith-source { font-size: 13px; line-height: 1.7; }
+  .hadith-note { font-size: 13px; margin-bottom: 22px; }
+  .hadith-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hadith-actions .btn { width: 100%; padding: 12px 24px; }
+
+  /* Commands panel — full width sheet under header */
+  #commands-panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+  .cmd-list { max-height: 50vh; }
+}
+@media (max-width: 420px) {
+  .hadith-ornament { font-size: 18px; margin-bottom: 14px; }
+  .hadith-text { font-size: 18px; }
+  #challenge-title { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 }
 /* Exit confirmation overlay */
 #exit-confirm {
