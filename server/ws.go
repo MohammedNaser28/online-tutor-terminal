@@ -363,6 +363,7 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 	go func() {
 		check := time.NewTicker(5 * time.Second)
 		defer check.Stop()
+		warned := false
 		for range check.C {
 			session.mu.Lock()
 			st := session.State()
@@ -371,7 +372,21 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 				continue
 			}
 			idle := time.Since(session.LastActive())
-			if idle < srv.config.IdleTimeout {
+			remaining := srv.config.IdleTimeout - idle
+			if remaining > time.Minute {
+				warned = false
+				continue
+			}
+			if !warned && remaining > 0 {
+				// Warn shortly before the timeout so the user can act.
+				warned = true
+				wsNotify(session, wsMessage{
+					Type:    "warn",
+					Message: fmt.Sprintf("⚠️ You will be disconnected in %d second(s) due to inactivity — press any key to stay connected.", int(remaining.Seconds())),
+				})
+				continue
+			}
+			if remaining > 0 {
 				continue
 			}
 			log.Printf("session %s idle for %v, closing", token, idle)
