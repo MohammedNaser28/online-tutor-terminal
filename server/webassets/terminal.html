@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>qo — Terminal</title>
-<link rel="stylesheet" href="https://unpkg.com/xterm@5.3.0/css/xterm.css">
+<link rel="stylesheet" href="/static/vendor/xterm.css">
 <style>
 :root {
   --bg-primary: #0f1117;
@@ -122,6 +122,174 @@ body {
 .status-text.connected { color: var(--accent-green); }
 .status-text.reconnecting { color: var(--accent-yellow); }
 .status-text.disconnected { color: var(--accent-red); }
+/* Hadith gate */
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/static/vendor/fonts/amiri-v30-arabic_latin-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/static/vendor/fonts/amiri-v30-arabic_latin-700.woff2') format('woff2');
+}
+#hadith-gate {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at top, rgba(210, 153, 34, 0.08), transparent 60%),
+    rgba(15, 17, 23, 0.97);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  direction: rtl;
+  padding: 24px;
+}
+#hadith-gate.hidden { display: none; }
+.hadith-card {
+  background: linear-gradient(180deg, #161b22 0%, #12161d 100%);
+  border: 1px solid #d2992233;
+  border-top: 3px solid var(--accent-yellow);
+  border-radius: 16px;
+  padding: 40px 36px 32px;
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+.hadith-ornament {
+  color: var(--accent-yellow);
+  font-size: 22px;
+  margin-bottom: 20px;
+  letter-spacing: 8px;
+}
+.hadith-text {
+  font-family: 'Amiri', serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 2.1;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+.hadith-source {
+  font-family: 'Amiri', serif;
+  font-size: 16px;
+  color: var(--accent-yellow);
+  margin-bottom: 8px;
+}
+.hadith-note {
+  font-family: 'Amiri', serif;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+.hadith-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  direction: rtl;
+}
+.hadith-actions .btn {
+  font-family: 'Amiri', serif;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 10px 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.btn-hadith-accept {
+  background: var(--accent-green);
+  color: #0f1117;
+}
+.btn-hadith-accept:hover { background: #56d364; transform: translateY(-1px); }
+.btn-hadith-refuse {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color) !important;
+}
+.btn-hadith-refuse:hover { color: var(--accent-red); border-color: var(--accent-red) !important; }
+/* Commands panel */
+#commands-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
+}
+#commands-btn:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+#commands-panel {
+  position: absolute;
+  top: 60px;
+  right: 24px;
+  width: 320px;
+  max-width: calc(100vw - 48px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 150;
+  display: none;
+  overflow: hidden;
+}
+#commands-panel.visible { display: block; }
+.cmd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+.cmd-header span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+}
+#cmd-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+}
+#cmd-close:hover { color: var(--text-primary); }
+.cmd-list { padding: 8px 0; max-height: 55vh; overflow-y: auto; }
+.cmd-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 14px;
+}
+.cmd-item:hover { background: var(--bg-tertiary); }
+.cmd-name {
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-green);
+  white-space: nowrap;
+}
+.cmd-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
 /* Terminal wrapper */
 #terminal-wrapper {
   flex: 1;
@@ -274,6 +442,7 @@ body {
       </div>
     </div>
     <div id="connection-status">
+      <button id="commands-btn" title="Custom commands">❔ Commands</button>
       <span class="status-dot connecting" id="status-dot"></span>
       <span class="status-text connecting" id="status-text">Connecting</span>
     </div>
@@ -297,6 +466,35 @@ body {
   </div>
 </div>
 
+<div id="hadith-gate">
+  <div class="hadith-card">
+    <div class="hadith-ornament">﷽</div>
+    <p class="hadith-text">أنَّ رَسولَ اللهِ صلَّى اللهُ عليه وسلَّم مَرَّ على صُبرةِ طَعامٍ فأدخَلَ يَدَه فيها، فنالَت أصابِعُه بَلَلًا، فقال: ما هذا يا صاحِبَ الطَّعامِ؟ قال: أصابَتْه السَّماءُ يا رَسولَ اللهِ، قال: أفَلا جَعَلتَه فوقَ الطَّعامِ كَي يَراه النَّاسُ، مَن غَشَّ فليسَ مِنِّي.</p>
+    <p class="hadith-source">الراوي : أبو هريرة | المحدث : مسلم | المصدر : صحيح مسلم<br>الصفحة أو الرقم: 102 | خلاصة حكم المحدث : [صحيح]</p>
+    <p class="hadith-note">وبسم الله نبدأ رحلتك في هذا التحدي. التزم بالأمانة، ولا تحاول الغش.</p>
+    <div class="hadith-actions">
+      <button class="btn btn-hadith-accept" id="hadith-accept">أوافق وأبدأ</button>
+      <button class="btn btn-hadith-refuse" id="hadith-refuse">رفض والخروج</button>
+    </div>
+  </div>
+</div>
+
+<div id="commands-panel">
+  <div class="cmd-header">
+    <span>⚡ Custom Commands</span>
+    <button id="cmd-close">✕</button>
+  </div>
+  <div class="cmd-list">
+    <div class="cmd-item"><span class="cmd-name">quest [n]</span><span class="cmd-desc">Show the question for the current level, or jump to level n</span></div>
+    <div class="cmd-item"><span class="cmd-name">go [answer]</span><span class="cmd-desc">Check your work for the current level. Some levels take an answer: <code>go QO-1234-CODE</code></span></div>
+    <div class="cmd-item"><span class="cmd-name">level &lt;n&gt;</span><span class="cmd-desc">Switch to level n (all levels are unlocked)</span></div>
+    <div class="cmd-item"><span class="cmd-name">hint</span><span class="cmd-desc">Get a hint for the current level</span></div>
+    <div class="cmd-item"><span class="cmd-name">map</span><span class="cmd-desc">Show all levels and your progress</span></div>
+    <div class="cmd-item"><span class="cmd-name">status</span><span class="cmd-desc">Show current level and completion state</span></div>
+    <div class="cmd-item"><span class="cmd-name">help</span><span class="cmd-desc">Print this list inside the terminal</span></div>
+  </div>
+</div>
+
 <div id="exit-confirm">
   <div class="exit-modal">
     <h2>⚠️ End Session</h2>
@@ -309,8 +507,9 @@ body {
   </div>
 </div>
 
-<script src="https://unpkg.com/xterm@5.3.0/lib/xterm.js"></script>
-<script src="https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/xterm-fit.js"></script>
+<script src="/static/vendor/xterm-webgl.js"></script>
 <script>
 var params = new URLSearchParams(window.location.search);
 var token = params.get('token');
@@ -393,6 +592,15 @@ function connect() {
     if (firstConnect) {
       document.getElementById('loading-overlay').classList.add('hidden');
       firstConnect = false;
+      // Show the commands panel once so new users discover the custom tools.
+      var cmdPanel = document.getElementById('commands-panel');
+      if (!cmdPanel.dataset.dismissed) {
+        cmdPanel.classList.add('visible');
+        setTimeout(function () {
+          cmdPanel.classList.remove('visible');
+          cmdPanel.dataset.dismissed = '1';
+        }, 12000);
+      }
     }
 
     if (!logoPrinted) {
@@ -455,6 +663,17 @@ if (!token) {
 if (token) {
   renderInfoBox();
 
+  // Hadith acceptance gate — the terminal (WebSocket) only starts on accept.
+  var hadithGate = document.getElementById('hadith-gate');
+  document.getElementById('hadith-accept').addEventListener('click', function () {
+    hadithGate.classList.add('hidden');
+    connect();
+  });
+  document.getElementById('hadith-refuse').addEventListener('click', function () {
+    closed = true; // block auto-reconnect paths
+    window.location.href = '/';
+  });
+
   var term = new Terminal({
     cursorBlink: true,
     cursorStyle: 'block',
@@ -487,6 +706,12 @@ if (token) {
   var fitAddon = new FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(document.getElementById('terminal'));
+  // WebGL renderer — the default DOM renderer chokes on heavy output.
+  try {
+    var webglAddon = new WebglAddon.WebglAddon();
+    webglAddon.onContextLoss(function () { webglAddon.dispose(); });
+    term.loadAddon(webglAddon);
+  } catch (e) { /* fall back to DOM renderer */ }
   fitAddon.fit();
 
   var logoText = '';
@@ -546,6 +771,17 @@ if (token) {
   document.getElementById('mobile-toggle').addEventListener('click', function () {
     var el = document.getElementById('mobile-keys');
     el.classList.toggle('visible');
+  });
+
+  // --- Commands panel ---
+  var cmdPanel = document.getElementById('commands-panel');
+  document.getElementById('commands-btn').addEventListener('click', function () {
+    cmdPanel.classList.toggle('visible');
+    cmdPanel.dataset.dismissed = '1';
+  });
+  document.getElementById('cmd-close').addEventListener('click', function () {
+    cmdPanel.classList.remove('visible');
+    cmdPanel.dataset.dismissed = '1';
   });
 
   var inputBuffer = '';
@@ -622,8 +858,6 @@ if (token) {
       ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
     }
   });
-
-  connect();
 }
 </script>
 </body>
