@@ -164,6 +164,16 @@ func (m *SessionManager) LookupByStudentID(sid string) (string, bool) {
 	return tok, ok
 }
 
+func (m *SessionManager) GetSessionByStudentID(studentID string) (*Session, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if token, ok := m.byStudentID[studentID]; ok {
+		s, exists := m.sessions[token]
+		return s, exists
+	}
+	return nil, false
+}
+
 func (m *SessionManager) RemoveSession(token string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -212,7 +212,7 @@ func TestNormalizeMeta_ExplicitLevels(t *testing.T) {
 
 // ─── loadCheckScripts ───────────────────────────────────────────────────────
 
-func TestLoadCheckScripts_ReadsAndDeletes(t *testing.T) {
+func TestLoadCheckScripts_ReadsInitKeepsCheck(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
@@ -233,15 +233,15 @@ func TestLoadCheckScripts_ReadsAndDeletes(t *testing.T) {
 		t.Fatalf("loadCheckScripts: %v", err)
 	}
 
-	if levels[0].CheckScript != checkContent {
-		t.Errorf("expected check.sh content %q, got %q", checkContent, levels[0].CheckScript)
+	if levels[0].CheckScript != "" {
+		t.Errorf("expected empty CheckScript (stays in sandbox), got %q", levels[0].CheckScript)
 	}
 	if levels[0].InitScript != initContent {
 		t.Errorf("expected init.sh content %q, got %q", initContent, levels[0].InitScript)
 	}
 
-	if _, err := os.Stat(filepath.Join(levelDir, "check.sh")); !os.IsNotExist(err) {
-		t.Error("check.sh should be deleted from sandbox")
+	if _, err := os.Stat(filepath.Join(levelDir, "check.sh")); err != nil {
+		t.Error("check.sh should remain in sandbox for local execution")
 	}
 	if _, err := os.Stat(filepath.Join(levelDir, "init.sh")); !os.IsNotExist(err) {
 		t.Error("init.sh should be deleted from sandbox")
@@ -890,8 +890,11 @@ func TestPollChallengeRequests_Map(t *testing.T) {
 	defer srv.manager.RemoveSession(session.Token)
 
 	resp := pollAction(t, tmpDir, "map", 5*time.Second)
-	if !strings.Contains(resp, "Map 1/2") {
-		t.Errorf("expected 'Map 1/2', got %q", resp)
+	if !strings.Contains(resp, "Challenge Level Map") {
+		t.Errorf("expected map header, got %q", resp)
+	}
+	if !strings.Contains(resp, "Level 1: One") {
+		t.Errorf("expected level entry, got %q", resp)
 	}
 }
 

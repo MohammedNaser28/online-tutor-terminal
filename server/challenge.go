@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -256,7 +257,6 @@ func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 			}
 		}
 
-		readFile(filepath.Join(lvlDir, "check.sh"), "check.sh", &lvl.CheckScript)
 		readFile(filepath.Join(lvlDir, "init.sh"), "init.sh", &lvl.InitScript)
 		readFile(filepath.Join(lvlDir, "question.txt"), "question.txt", &lvl.Question)
 		readFile(filepath.Join(lvlDir, "hint.txt"), "hint.txt", &lvl.Hint)
@@ -284,11 +284,38 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 	if checkScript == "" {
 		return false, "No check script found for this level.", nil
 	}
-	cmd := exec.Command("/bin/bash", "-s", "--")
-	cmd.Dir = findLevelDir(rootfsPath, levelID)
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &outBuf
+
+	levelDir := findLevelDir(rootfsPath, levelID)
+	chrootPath := filepath.Join(rootfsPath, "rootfs")
+
+	// Go applies Chroot before Chdir, so the working directory must be
+	// expressed relative to the inside of the chroot.
+	cwd := "/tmp/" + filepath.Base(levelDir)
+	if rel, err := filepath.Rel(chrootPath, levelDir); err == nil && !strings.HasPrefix(rel, "..") {
+		cwd = "/" + rel
+	}
+
+	cmdArgs := []string{"-s", "--"}
+	cmd := exec.Command("/bin/bash", cmdArgs...)
+	cmd.Dir = cwd
+	// Chroot needs real root; skip it when running unprivileged (tests,
+	// dev runs) and address the sandbox through the host path instead.
+	if os.Geteuid() == 0 {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Chroot: chrootPath,
+		}
+	} else {
+		cmd.Dir = levelDir
+	}
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=/home/ahmed",
+		"USER=ahmed",
+		"LOGNAME=ahmed",
+		"TERM=xterm",
+		"LD_LIBRARY_PATH=/usr/lib:/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu",
+	}
+
 	var sb strings.Builder
 	sb.WriteString("set -e\n")
 	sb.WriteString(checkScript)
@@ -298,6 +325,11 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 		sb.WriteByte('\n')
 	}
 	cmd.Stdin = strings.NewReader(sb.String())
+
+	var outBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &outBuf
+
 	err := cmd.Run()
 	output := strings.TrimSpace(outBuf.String())
 	if err != nil {
@@ -537,6 +569,8 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
 						session.Challenge.SetLevel(targetLvl)
+						levelFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-current-level")
+						_ = os.WriteFile(levelFile, []byte(fmt.Sprintf("level%d", targetLvl)), 0644)
 					}
 					current := session.Challenge.Current()
 					levelID := session.Challenge.CurrentLevel + 1
@@ -563,6 +597,8 @@ func (s *Server) pollChallengeRequests(session *Session) {
 							current := session.Challenge.Current()
 							resp = []byte(fmt.Sprintf("\033[32mSwitched to Level %d: %s\033[0m\n\n%s",
 								session.Challenge.CurrentLevel+1, current.Title, current.Question))
+							levelFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-current-level")
+							_ = os.WriteFile(levelFile, []byte(fmt.Sprintf("level%d", targetLvl)), 0644)
 						} else {
 							resp = []byte(fmt.Sprintf("\033[31mInvalid level %d. Total levels: %d\033[0m", targetLvl, session.Challenge.Total()))
 						}
@@ -618,11 +654,51 @@ func (s *Server) pollChallengeRequests(session *Session) {
 					} else if passed {
 						session.Challenge.MarkCompleted(level.ID)
 						session.IncrementScore()
-						outSb.WriteString(fmt.Sprintf("\033[32m🎉 Level %d Passed!\033[0m", level.ID))
+						if session.Challenge.Completed {
+							outSb.WriteString("\033[32m🎉 Correct! You've completed all levels!\033[0m")
+						} else if session.Challenge.Advance() {
+							outSb.WriteString(fmt.Sprintf("\033[32m✅ Correct! Now on level %d/%d\033[0m",
+								session.Challenge.CurrentLevel+1, session.Challenge.Total()))
+						} else {
+							outSb.WriteString("\033[32m✅ Correct!\033[0m")
+						}
 					} else {
-						outSb.WriteString(fmt.Sprintf("\033[31m❌ Level %d Incomplete. Try again!\033[0m", level.ID))
+						outSb.WriteString(fmt.Sprintf("\033[31m❌ Not quite right. Level %d incomplete. Try again!\033[0m", level.ID))
 					}
 					resp = []byte(outSb.String())
+				} else {
+					resp = []byte("\033[33mNo challenge loaded.\033[0m")
+				}
+
+			case "solved":
+				// Sent by the in-sandbox __qo_go helper after a local
+				// check.sh exits 0 — records completion and score.
+				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
+					targetLvl := parseArgLevel(arg)
+					var lvl ChallengeLevel
+					if targetLvl > 0 {
+						found := false
+						for _, lv := range session.Challenge.Levels {
+							if lv.ID == targetLvl {
+								lvl = lv
+								found = true
+								break
+							}
+						}
+						if !found {
+							resp = []byte(fmt.Sprintf("\033[31m❌ Unknown level %d\033[0m", targetLvl))
+							break
+						}
+					} else {
+						lvl = session.Challenge.Current()
+					}
+					session.Challenge.MarkCompleted(lvl.ID)
+					session.IncrementScore()
+					if !session.Challenge.Completed {
+						session.Challenge.Advance()
+					}
+					log.Printf("challenge solved session=%s level=%d via local check.sh", session.Token, lvl.ID)
+					resp = []byte(fmt.Sprintf("\033[32m🎉 Level %d recorded as passed!\033[0m", lvl.ID))
 				} else {
 					resp = []byte("\033[33mNo challenge loaded.\033[0m")
 				}

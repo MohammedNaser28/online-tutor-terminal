@@ -168,6 +168,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	session.RootfsPath = sessionRootfs
 	session.mu.Unlock()
 
+	// check.sh stays inside the sandbox: `go` executes it locally and
+	// reports completion via the "solved" IPC action (see challenge.go).
+	// Validators-only levels fall back to the server-side "go" IPC action.
+
 	cmd := exec.Command(s.config.QoBinaryPath, "start",
 		"-i", session.StudentID,
 		"-a", s.config.ArchivePath,
@@ -254,6 +258,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Read check.sh content from extracted rootfs and delete from sandbox.
 	if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
 		loadCheckScripts(session.RootfsPath, session.Challenge.Levels)
+
+		// Point the in-sandbox `go` helper at the first level so local
+		// check.sh execution works before any quest/level command.
+		levelFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-current-level")
+		_ = os.WriteFile(levelFile, []byte(fmt.Sprintf("level%d", session.Challenge.Levels[0].ID)), 0644)
 	}
 
 	go s.pollChallengeRequests(session)
