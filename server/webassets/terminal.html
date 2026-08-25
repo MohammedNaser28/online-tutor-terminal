@@ -374,8 +374,33 @@ body {
   #mobile-toggle { display: none; }
   #header-bar { padding: 8px 12px; flex-wrap: wrap; }
   #info-box { font-size: 12px; gap: 10px; flex-wrap: wrap; }
-   #terminal-wrapper { padding: 8px; }
+  #terminal-wrapper { padding: 8px; }
 
+  /* Hadith gate */
+  #hadith-gate { padding: 12px; }
+  .hadith-card {
+    border-radius: 12px;
+    width: calc(100vw - 24px);
+  }
+  .hadith-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hadith-actions .btn { width: 100%; padding: 12px 24px; }
+
+  /* Commands panel — full width sheet under header */
+  #commands-panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+  .cmd-list { max-height: 50vh; }
+
+  /* Tour */
+  .tour-card { padding: 22px 18px; }
+}
 /* Tour */
 #tour-overlay {
   position: fixed;
@@ -471,32 +496,12 @@ body {
   color: var(--text-secondary);
 }
 .btn-tour-skip:hover { color: var(--text-primary); }
-/* Hadith gate */
-  #hadith-gate { padding: 12px; }
-  .hadith-card {
-    border-radius: 12px;
-    width: calc(100vw - 24px);
-  }
-  .hadith-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .hadith-actions .btn { width: 100%; padding: 12px 24px; }
 
-  /* Commands panel — full width sheet under header */
-  #commands-panel {
-    top: auto;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-width: none;
-  }
-  .cmd-list { max-height: 50vh; }
-}
 @media (max-width: 420px) {
   .hadith-text { font-size: clamp(15px, 4.2vw, 18px); }
   #challenge-title { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 }
+
 /* Exit confirmation overlay */
 #exit-confirm {
   position: fixed; inset: 0;
