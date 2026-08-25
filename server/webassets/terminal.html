@@ -760,6 +760,17 @@ function connect() {
       reconnectTimer = null;
     }
     setConnectionState('connected');
+    retryDelay = 500;
+
+    // Application-level keepalive: proxies like Cloudflare drop quiet
+    // WebSocket connections (~100s), which killed the session while the
+    // student was reading the tour. Server swallows these.
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
+    keepaliveTimer = setInterval(function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('{"type":"keepalive"}');
+      }
+    }, 25000);
 
     if (firstConnect) {
       document.getElementById('loading-overlay').classList.add('hidden');
@@ -781,8 +792,10 @@ function connect() {
 
     // Sync the PTY to the real terminal dimensions — without this the
     // process starts at the server's default 24x80 and full-screen apps
-    // (nano, vim) render broken.
+    // (nano, vim) render broken. Push twice: once early, once after the
+    // renderer/fonts have settled.
     setTimeout(function () { fitAddon.fit(); pushTermSize(); }, 60);
+    setTimeout(function () { fitAddon.fit(); pushTermSize(); }, 400);
 
     term.focus();
   };
@@ -817,6 +830,10 @@ function connect() {
   };
 
   ws.onclose = function () {
+    if (keepaliveTimer) {
+      clearInterval(keepaliveTimer);
+      keepaliveTimer = null;
+    }
     if (!closed) {
       showBanner('Disconnected. Reconnecting...', 'warn');
       setConnectionState('reconnecting');
@@ -897,6 +914,10 @@ if (token) {
   } catch (e) { /* fall back to DOM renderer */ }
   fitAddon.fit();
 
+  // Any dimension change (fit, zen toggle, window resize) must reach the
+  // PTY or full-screen apps like nano render at the wrong size.
+  term.onResize(pushTermSize);
+
   var logoText = '';
   var logoPrinted = false;
 
@@ -931,6 +952,7 @@ if (token) {
   var closed = false;
   var firstConnect = true;
   var retryDelay = 500;
+  var keepaliveTimer = null;
   var MAX_RETRY_DELAY = 8000;
 
   var keySequences = {

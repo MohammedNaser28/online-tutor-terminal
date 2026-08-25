@@ -760,6 +760,17 @@ function connect() {
       reconnectTimer = null;
     }
     setConnectionState('connected');
+    retryDelay = 500;
+
+    // Application-level keepalive: proxies like Cloudflare drop quiet
+    // WebSocket connections (~100s), which killed the session while the
+    // student was reading the tour. Server swallows these.
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
+    keepaliveTimer = setInterval(function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('{"type":"keepalive"}');
+      }
+    }, 25000);
 
     if (firstConnect) {
       document.getElementById('loading-overlay').classList.add('hidden');
@@ -819,6 +830,10 @@ function connect() {
   };
 
   ws.onclose = function () {
+    if (keepaliveTimer) {
+      clearInterval(keepaliveTimer);
+      keepaliveTimer = null;
+    }
     if (!closed) {
       showBanner('Disconnected. Reconnecting...', 'warn');
       setConnectionState('reconnecting');
@@ -937,6 +952,7 @@ if (token) {
   var closed = false;
   var firstConnect = true;
   var retryDelay = 500;
+  var keepaliveTimer = null;
   var MAX_RETRY_DELAY = 8000;
 
   var keySequences = {

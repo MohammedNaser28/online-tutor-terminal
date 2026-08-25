@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -34,22 +35,22 @@ type Validator struct {
 }
 
 type ChallengeLevel struct {
-	ID           int        `json:"id"`
-	Title        string     `json:"title"`
-	Question     string     `json:"question"`
-	Hint         string     `json:"hint,omitempty"`
-	Validator    *Validator `json:"validator,omitempty"`
-	CheckScript  string     `json:"-"` // loaded from file, kept server-side only
-	InitScript   string     `json:"-"` // setup script, deleted after first run
+	ID          int        `json:"id"`
+	Title       string     `json:"title"`
+	Question    string     `json:"question"`
+	Hint        string     `json:"hint,omitempty"`
+	Validator   *Validator `json:"validator,omitempty"`
+	CheckScript string     `json:"-"` // loaded from file, kept server-side only
+	InitScript  string     `json:"-"` // setup script, deleted after first run
 }
 
 type ChallengeMetadata struct {
-	Title       string            `json:"title,omitempty" yaml:"title,omitempty"`
-	Difficulty  string            `json:"difficulty,omitempty" yaml:"difficulty,omitempty"`
-	Story       string            `json:"story,omitempty" yaml:"story,omitempty"`
-	Question    string            `json:"question,omitempty" yaml:"question,omitempty"`
-	Levels      []ChallengeLevel  `json:"levels,omitempty" yaml:"levels,omitempty"`
-	DefaultHint string            `json:"default_hint,omitempty" yaml:"default_hint,omitempty"`
+	Title       string           `json:"title,omitempty" yaml:"title,omitempty"`
+	Difficulty  string           `json:"difficulty,omitempty" yaml:"difficulty,omitempty"`
+	Story       string           `json:"story,omitempty" yaml:"story,omitempty"`
+	Question    string           `json:"question,omitempty" yaml:"question,omitempty"`
+	Levels      []ChallengeLevel `json:"levels,omitempty" yaml:"levels,omitempty"`
+	DefaultHint string           `json:"default_hint,omitempty" yaml:"default_hint,omitempty"`
 }
 
 type ChallengeState struct {
@@ -134,11 +135,11 @@ func (c *ChallengeState) Status() map[string]any {
 		}
 	}
 	return map[string]any{
-		"current_level":   c.CurrentLevel,
-		"total_levels":    len(c.Levels),
-		"completed":       c.Completed,
-		"current_title":   c.Current().Title,
-		"levels":          levels,
+		"current_level": c.CurrentLevel,
+		"total_levels":  len(c.Levels),
+		"completed":     c.Completed,
+		"current_title": c.Current().Title,
+		"levels":        levels,
 	}
 }
 
@@ -159,6 +160,38 @@ func LoadChallengeMeta(binaryPath, archivePath, password, key string) (*Challeng
 
 	normalizeMeta(&meta)
 	return &meta, nil
+}
+
+// cachedChallengeMeta returns a per-session copy of the parsed metadata.
+// `qo meta` costs ~1s of PBKDF2 per call; caching removes that from every
+// session after the first. The clone prevents loadLevelFiles (which writes
+// question/hint text into level entries) from leaking one student's files
+// into another's session.
+func (s *Server) cachedChallengeMeta() (*ChallengeMetadata, error) {
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+
+	key := s.config.ArchivePath
+	if m, ok := s.metaCache[key]; ok {
+		clone := *m
+		clone.Levels = make([]ChallengeLevel, len(m.Levels))
+		copy(clone.Levels, m.Levels)
+		return &clone, nil
+	}
+
+	m, err := LoadChallengeMeta(s.config.QoBinaryPath, s.config.ArchivePath, s.config.Password, s.config.Key)
+	if err != nil {
+		return nil, err
+	}
+	if s.metaCache == nil {
+		s.metaCache = make(map[string]*ChallengeMetadata)
+	}
+	s.metaCache[key] = m
+
+	clone := *m
+	clone.Levels = make([]ChallengeLevel, len(m.Levels))
+	copy(clone.Levels, m.Levels)
+	return &clone, nil
 }
 
 func normalizeMeta(meta *ChallengeMetadata) {
@@ -218,61 +251,68 @@ func parseLevelID(name string) int {
 }
 
 func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
+	// Levels are independent: load them concurrently so one slow retry
+	// window doesn't serialize behind another.
+	var wg sync.WaitGroup
 	for i := range levels {
-		lvl := &levels[i]
+		wg.Add(1)
+		go func(lvl *ChallengeLevel) {
+			defer wg.Done()
+			loadLevelFiles(rootfsPath, lvl)
+		}(&levels[i])
+	}
+	wg.Wait()
+	return nil
+}
 
-		// Wait for level directory to exist (archive extraction may still be in progress).
-		var lvlDir string
-		for attempt := 0; attempt < 30; attempt++ {
-			candidate := findLevelDir(rootfsPath, lvl.ID)
-			if _, err := os.Stat(candidate); err == nil {
-				lvlDir = candidate
+func loadLevelFiles(rootfsPath string, lvl *ChallengeLevel) {
+	// Wait for level directory to exist (archive extraction may still be in progress).
+	var lvlDir string
+	for attempt := 0; attempt < 30; attempt++ {
+		candidate := findLevelDir(rootfsPath, lvl.ID)
+		if _, err := os.Stat(candidate); err == nil {
+			lvlDir = candidate
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if lvlDir == "" {
+		lvlDir = filepath.Join(rootfsPath, "rootfs", "root", "challenges", fmt.Sprintf("level%d", lvl.ID))
+	}
+
+	readFile := func(path, label string, store *string) {
+		for attempt := 0; attempt < 10; attempt++ {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				if len(data) > 0 || *store == "" {
+					*store = string(data)
+				}
+				if err := os.Remove(path); err == nil {
+					log.Printf("secured %s: level=%d", label, lvl.ID)
+				}
+				return
+			}
+			if os.IsNotExist(err) {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	if lvl.Validator != nil {
+		// Answer lives server-side — the script must not ship.
+		for attempt := 0; attempt < 10; attempt++ {
+			if err := os.Remove(filepath.Join(lvlDir, "check.sh")); err == nil || os.IsNotExist(err) {
 				break
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 		}
-
-		if lvlDir == "" {
-			lvlDir = filepath.Join(rootfsPath, "rootfs", "root", "challenges", fmt.Sprintf("level%d", lvl.ID))
-		}
-
-		// Levels with a pure-Go validator are checked server-side: their
-		// check.sh would leak the expected answer, so remove it from the
-		// sandbox entirely. The in-shell 'go' falls back to IPC for these.
-		readFile := func(path, label string, store *string) {
-			for attempt := 0; attempt < 10; attempt++ {
-				data, err := os.ReadFile(path)
-				if err == nil {
-					if len(data) > 0 || *store == "" {
-						*store = string(data)
-					}
-					if err := os.Remove(path); err == nil {
-						log.Printf("secured %s: level=%d", label, lvl.ID)
-					}
-					return
-				}
-				if os.IsNotExist(err) {
-					return
-				}
-				time.Sleep(50 * time.Millisecond)
-			}
-		}
-
-		if lvl.Validator != nil {
-			// Answer lives server-side — the script must not ship.
-			for attempt := 0; attempt < 10; attempt++ {
-				if err := os.Remove(filepath.Join(lvlDir, "check.sh")); err == nil || os.IsNotExist(err) {
-					break
-				}
-				time.Sleep(50 * time.Millisecond)
-			}
-		}
-
-		readFile(filepath.Join(lvlDir, "init.sh"), "init.sh", &lvl.InitScript)
-		readFile(filepath.Join(lvlDir, "question.txt"), "question.txt", &lvl.Question)
-		readFile(filepath.Join(lvlDir, "hint.txt"), "hint.txt", &lvl.Hint)
 	}
-	return nil
+
+	readFile(filepath.Join(lvlDir, "init.sh"), "init.sh", &lvl.InitScript)
+	readFile(filepath.Join(lvlDir, "question.txt"), "question.txt", &lvl.Question)
+	readFile(filepath.Join(lvlDir, "hint.txt"), "hint.txt", &lvl.Hint)
 }
 
 func runInitScript(rootfsPath string, level ChallengeLevel) error {
@@ -596,6 +636,24 @@ func (s *Server) pollChallengeRequests(session *Session) {
 					return num
 				}
 				return 0
+			}
+
+			// Challenge commands need the metadata to be loaded; the
+			// responder now starts before 'qo meta' finishes, so an early
+			// command waits briefly instead of failing.
+			if session.Challenge == nil {
+				switch action {
+				case "quest", "level", "select", "hint", "go", "solved", "map", "status":
+					for i := 0; i < 40; i++ {
+						session.mu.Lock()
+						ready := session.Challenge != nil && len(session.Challenge.Levels) > 0
+						session.mu.Unlock()
+						if ready {
+							break
+						}
+						time.Sleep(100 * time.Millisecond)
+					}
+				}
 			}
 
 			switch action {

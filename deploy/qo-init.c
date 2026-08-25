@@ -348,7 +348,7 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    printf '%%s' \"$action\" > \"$tmpReq\"\n");
             fprintf(bashrc, "    mv -f \"$tmpReq\" \"$req\"\n");
             fprintf(bashrc, "    local i=1\n");
-            fprintf(bashrc, "    while [ $i -le 50 ]; do\n");
+            fprintf(bashrc, "    while [ $i -le 150 ]; do\n");
             fprintf(bashrc, "        if [ -s \"$resp\" ]; then\n");
             fprintf(bashrc, "            cat \"$resp\"\n");
             fprintf(bashrc, "            > \"$resp\"\n");

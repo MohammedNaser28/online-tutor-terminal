@@ -27,6 +27,8 @@ type Server struct {
 	queueMu      sync.Mutex
 	metaTitle    string
 	metaDifficulty string
+	metaMu       sync.Mutex
+	metaCache    map[string]*ChallengeMetadata
 }
 
 func NewServer(cfg *Config) *Server {

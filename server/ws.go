@@ -227,10 +227,14 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	session.SetState(SessionActive)
 	session.mu.Unlock()
 
-	// Load challenge metadata synchronously so pollChallengeRequests
-	// always sees a ready Challenge state. This runs `qo meta` (~1s).
+	// Start the IPC responder IMMEDIATELY: the student's shell can appear
+	// within a second or two, and an early 'quest' must not time out while
+	// meta decryption and check-script loading are still running below.
+	go s.pollChallengeRequests(session)
+
+	// Load challenge metadata synchronously (cached across sessions).
 	if s.config.ArchivePath != "" {
-		meta, err := LoadChallengeMeta(s.config.QoBinaryPath, s.config.ArchivePath, s.config.Password, s.config.Key)
+		meta, err := s.cachedChallengeMeta()
 		if err != nil {
 			log.Printf("load meta for %s: %v", token, err)
 		} else {
@@ -270,8 +274,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		levelFile := filepath.Join(session.RootfsPath, "rootfs", "tmp", ".qo-current-level")
 		_ = os.WriteFile(levelFile, []byte(fmt.Sprintf("level%d", session.Challenge.Levels[0].ID)), 0644)
 	}
-
-	go s.pollChallengeRequests(session)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -342,6 +344,13 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 				if err := pty.Setsize(term, &pty.Winsize{Rows: uint16(resize.Rows), Cols: uint16(resize.Cols)}); err != nil {
 					log.Printf("pty resize %s: %v", token, err)
 				}
+				continue
+			}
+			// Transport keepalive from the client: keeps proxies (e.g.
+			// Cloudflare) from dropping the connection while the student
+			// reads the tour or thinks. Deliberately NOT counted as
+			// activity — idle timeout still applies.
+			if json.Unmarshal(data, &resize) == nil && resize.Type == "keepalive" {
 				continue
 			}
 			if _, err := term.Write(data); err != nil {
