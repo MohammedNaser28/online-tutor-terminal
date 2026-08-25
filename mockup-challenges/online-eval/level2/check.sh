@@ -8,7 +8,7 @@ if [ -f "$BASE/link_lab/original.txt" ]; then
 fi
 
 if [ ! -f "$BASE/link_lab/hard_link.txt" ]; then
-    echo "[FAIL]: 'hard_link.txt' is missing (expected in /tmp/level2/link_lab)."
+    echo "[FAIL]: 'hard_link.txt' is missing (expected in ~/challenges/level2/link_lab)."
     exit 1
 fi
 

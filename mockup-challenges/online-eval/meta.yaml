@@ -23,7 +23,7 @@ levels:
   - id: 2
     title: "Level 2: Links"
     question: |
-      Work inside the level directory:
+      Work inside the level directory (~/challenges/level2):
       1. Create a directory `link_lab`, enter it, create `original.txt` with the text "Linux is awesome".
       2. Generate one HARD link (`hard_link.txt`) and one SOFT link (`soft_link.txt`) pointing to original.txt.
       3. Append "Learning links" to the soft link and check all three files show both lines.
@@ -34,7 +34,7 @@ levels:
   - id: 3
     title: "Level 3: Pipelining & Redirection"
     question: |
-      In the level directory:
+      In the level directory (~/challenges/level3):
       1. Run the command `path` — it doesn't exist! Log EXACTLY the error output to a file named `log`.
       2. Count how many lines `echo $PATH` outputs when piped to wc -l.
       3. Submit the count: go <number>
@@ -56,7 +56,7 @@ levels:
   - id: 5
     title: "Level 5: Searching for Files"
     question: |
-      Inside the `files` directory there is exactly ONE file whose name is
+      Inside `~/challenges/level5/files` there is exactly ONE file whose name is
       exactly four characters long ending in `.py`.
       Find it and submit just its name WITHOUT path or extension:
           go <name>
@@ -69,7 +69,7 @@ levels:
   - id: 6
     title: "Level 6: Compression & Text Processing"
     question: |
-      1. Uncompress LinuxDistros.tar.gz in the level directory.
+      1. Uncompress LinuxDistros.tar.gz in the level directory (~/challenges/level6).
       2. Extract ONLY these files from the archive: Random.txt, Debian.txt, Fedora.txt
       3. Count punctuation characters in each extracted file.
       4. Which file has the MOST punctuation? Submit its full name:
@@ -83,7 +83,7 @@ levels:
   - id: 7
     title: "Level 7: Find & Text Processing"
     question: |
-      Among person_N.txt files in the level directory:
+      Among person_N.txt files in ~/challenges/level7:
       1. Use find to locate REGULAR FILES that are EXACTLY 55 bytes.
       2. From each matching file extract the year on the date: line.
       3. Pass BOTH person numbers whose year is greater than 2000, ascending:

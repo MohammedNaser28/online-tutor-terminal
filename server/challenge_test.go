@@ -16,9 +16,14 @@ func createRootfs(t *testing.T, levels []int) (string, func()) {
 	if err != nil {
 		t.Fatalf("mkdtemp rootfs: %v", err)
 	}
-	tmp := filepath.Join(rootfs, "rootfs", "tmp")
+	challenges := filepath.Join(rootfs, "rootfs", "root", "challenges")
+	ipcTmp := filepath.Join(rootfs, "rootfs", "tmp")
 	proc := filepath.Join(rootfs, "rootfs", "proc")
-	if err := os.MkdirAll(tmp, 0755); err != nil {
+	if err := os.MkdirAll(challenges, 0755); err != nil {
+		os.RemoveAll(rootfs)
+		t.Fatalf("mkdir challenges: %v", err)
+	}
+	if err := os.MkdirAll(ipcTmp, 0755); err != nil {
 		os.RemoveAll(rootfs)
 		t.Fatalf("mkdir tmp: %v", err)
 	}
@@ -27,7 +32,7 @@ func createRootfs(t *testing.T, levels []int) (string, func()) {
 		t.Fatalf("mkdir proc: %v", err)
 	}
 	for _, id := range levels {
-		if err := os.MkdirAll(filepath.Join(tmp, levelDir(id)), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(challenges, levelDir(id)), 0755); err != nil {
 			os.RemoveAll(rootfs)
 			t.Fatalf("mkdir level%d: %v", id, err)
 		}
@@ -216,7 +221,7 @@ func TestLoadCheckScripts_ReadsInitKeepsCheck(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 
 	checkContent := "#!/bin/bash\necho check"
 	initContent := "#!/bin/bash\necho init"
@@ -270,7 +275,7 @@ func TestRunInitScript_ExecutesInSandbox(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 
 	level := ChallengeLevel{
 		ID:         1,
@@ -390,7 +395,7 @@ func TestValidator_FileExists(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 	if err := os.WriteFile(filepath.Join(levelDir, "exist.txt"), []byte("data"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +429,7 @@ func TestValidator_FileNotExists(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 	if err := os.WriteFile(filepath.Join(levelDir, "present.txt"), []byte("data"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +463,7 @@ func TestValidator_FileContains(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 	if err := os.WriteFile(filepath.Join(levelDir, "data.txt"), []byte("the secret flag is hidden"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +498,7 @@ func TestValidator_FilePerms(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 	if err := os.WriteFile(filepath.Join(levelDir, "secret.txt"), []byte("data"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +623,7 @@ func TestDiscoverLevelsFromRootfs_FindsLevels(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1, 2, 3})
 	defer cleanup()
 
-	tmp := filepath.Join(rootfs, "rootfs", "tmp")
+	tmp := filepath.Join(rootfs, "rootfs", "root", "challenges")
 	l1 := filepath.Join(tmp, levelDir(1))
 	l2 := filepath.Join(tmp, levelDir(2))
 
@@ -667,7 +672,7 @@ func TestDiscoverLevelsFromRootfs_NonLevelDirsIgnored(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
-	tmp := filepath.Join(rootfs, "rootfs", "tmp")
+	tmp := filepath.Join(rootfs, "rootfs", "root", "challenges")
 	if err := os.MkdirAll(filepath.Join(tmp, "not-a-level"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -713,7 +718,7 @@ func setupPollTest(t *testing.T, levels []ChallengeLevel) (*Server, *Session, st
 		levelIDs = nil
 	}
 	rootfs, cleanup := createRootfs(t, levelIDs)
-	// Create the tmp dir under rootfs where req/resp files live.
+	// The req/resp IPC files live under rootfs/tmp.
 	tmp := filepath.Join(rootfs, "rootfs", "tmp")
 
 	cfg := &Config{
@@ -1012,7 +1017,7 @@ func TestPollChallengeRequests_InitScript(t *testing.T) {
 		t.Errorf("expected quest text containing 'InitTest', got %q", resp)
 	}
 
-	levelDir := filepath.Join(rootfs, "rootfs", "tmp", levelDir(1))
+	levelDir := filepath.Join(rootfs, "rootfs", "root", "challenges", levelDir(1))
 	data, err := os.ReadFile(filepath.Join(levelDir, "marker.txt"))
 	if err != nil {
 		t.Fatalf("init.sh should have created marker.txt: %v", err)

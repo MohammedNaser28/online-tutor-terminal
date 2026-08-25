@@ -184,7 +184,7 @@ func normalizeMeta(meta *ChallengeMetadata) {
 }
 
 func findLevelDir(rootfsPath string, levelID int) string {
-	baseTmp := filepath.Join(rootfsPath, "rootfs", "tmp")
+	baseTmp := filepath.Join(rootfsPath, "rootfs", "root", "challenges")
 	candidates := []string{
 		fmt.Sprintf("level%d", levelID),
 		fmt.Sprintf("Level-%d", levelID),
@@ -233,7 +233,7 @@ func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 		}
 
 		if lvlDir == "" {
-			lvlDir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID))
+			lvlDir = filepath.Join(rootfsPath, "rootfs", "root", "challenges", fmt.Sprintf("level%d", lvl.ID))
 		}
 
 		// Levels with a pure-Go validator are checked server-side: their
@@ -423,7 +423,7 @@ func processExists(rootfsPath string, name string) bool {
 }
 
 func DiscoverLevelsFromRootfs(rootfsPath string) ([]ChallengeLevel, error) {
-	tmpDir := filepath.Join(rootfsPath, "rootfs", "tmp")
+	tmpDir := filepath.Join(rootfsPath, "rootfs", "root", "challenges")
 
 	for attempt := 0; attempt < 20; attempt++ {
 		entries, err := os.ReadDir(tmpDir)

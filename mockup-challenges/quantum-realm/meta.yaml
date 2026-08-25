@@ -11,20 +11,20 @@ levels:
     title: "Level 1: The Hidden Uplink Code"
     question: |
       📡 MISSION BRIEFING — LEVEL 1:
-      A hidden directory somewhere under /tmp/level1 contains the uplink
+      A hidden directory somewhere under ~/challenges/level1 contains the uplink
       code (it matches the format QO-XXXX-QUANTUM).
 
       Find it, then submit the code with:
           go QO-XXXX-QUANTUM
-    hint: "Hidden entries start with a dot. Try: find /tmp/level1 -name '*key*' or ls -laR /tmp/level1"
+    hint: "Hidden entries start with a dot. Try: find ~/challenges/level1 -name '*key*' or ls -laR ~/challenges/level1"
 
   - id: 2
     title: "Level 2: Taming the Satellite Daemon"
     question: |
       🛰️ MISSION BRIEFING — LEVEL 2:
-      A diagnostic daemon lives at /tmp/level2/satellite.sh.
+      A diagnostic daemon lives at ~/challenges/level2/satellite.sh.
 
-      1. Go to its directory:           cd /tmp/level2
+      1. Go to its directory:           cd ~/challenges/level2
       2. Launch it in the background:   ./satellite.sh &
       3. Watch it heartbeat into satellite.log for a moment.
       4. Terminate it cleanly (ps / pgrep to find it, then kill).
@@ -37,9 +37,9 @@ levels:
     title: "Level 3: Locking Down the Master Key"
     question: |
       🔐 MISSION BRIEFING — LEVEL 3:
-      The master key at /tmp/level3/master.key is currently world-readable.
+      The master key at ~/challenges/level3/master.key is currently world-readable.
       Lock it down so ONLY the owner can read and write it (no group/other
       permissions at all).
 
       Once done, type 'go' to verify.
-    hint: "chmod 600 /tmp/level3/master.key — then verify with ls -l /tmp/level3/master.key"
+    hint: "chmod 600 ~/challenges/level3/master.key — then verify with ls -l ~/challenges/level3/master.key"

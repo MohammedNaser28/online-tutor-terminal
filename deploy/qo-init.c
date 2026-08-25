@@ -361,7 +361,7 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    if [ -f \"/tmp/.qo-current-level\" ]; then\n");
             fprintf(bashrc, "        level=$(cat \"/tmp/.qo-current-level\")\n");
             fprintf(bashrc, "    fi\n");
-            fprintf(bashrc, "    local check=\"/tmp/${level}/check.sh\"\n");
+            fprintf(bashrc, "    local check=\"$HOME/challenges/${level}/check.sh\"\n");
             fprintf(bashrc, "    if [ -x \"$check\" ]; then\n");
             fprintf(bashrc, "        if \"$check\" \"$@\"; then\n");
             fprintf(bashrc, "            __qo_challenge solved \"$level\"\n");
