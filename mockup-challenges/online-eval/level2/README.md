@@ -5,8 +5,7 @@ Basic commands
 ---
 
 > [!NOTE]
-> Stay **inside** `link_lab` and validate your work by typing `go`
-> (this runs the level's check script against your current directory).
+> When done, validate from anywhere by typing `go`.
 
 ---
 

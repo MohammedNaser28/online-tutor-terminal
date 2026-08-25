@@ -28,7 +28,7 @@ levels:
       2. Generate one HARD link (`hard_link.txt`) and one SOFT link (`soft_link.txt`) pointing to original.txt.
       3. Append "Learning links" to the soft link and check all three files show both lines.
       4. Delete `original.txt`, then try reading both links.
-      5. Run ./check.sh INSIDE link_lab to get your key.
+      5. When done, validate with: go
     hint: "ln for hard link, ln -s for soft link. Appending via the soft link writes through to the inode; deleting the original kills only the soft link's target."
 
   - id: 3
@@ -50,7 +50,7 @@ levels:
       2. Create group `pengroup` (the sandbox uses busybox: `addgroup`).
       3. Change penguin's primary group to `pengroup`.
       4. Delete penguin's OLD primary group with `delgroup penguin`.
-      5. Run ./check.sh to validate.
+      5. Validate with: go
     hint: "useradd, addgroup pengroup, then usermod -g pengroup penguin to change the primary group, delgroup penguin to remove the old one."
 
   - id: 5
@@ -74,7 +74,6 @@ levels:
       3. Count punctuation characters in each extracted file.
       4. Which file has the MOST punctuation? Submit its full name:
           go Random.txt   <- example format
-      Don't forget chmod +x check.sh!
     hint: "tar -tzf lists contents, tar -xzf <archive> <file1> <file2> extracts specific files. grep -o '[[:punct:]]' file | wc -l counts punctuation."
     validator:
       type: flag
@@ -131,5 +130,5 @@ levels:
       3. Using ABSOLUTE mode (numbers), give user agent read+write permission on the script.
       4. Using SYMBOLIC mode, give yourself execute permission, then run it in background.
       5. Find the script's PID and kill it with the appropriate signal flag.
-      6. Run ./check.sh once the sleep process is dead.
+      6. Validate with: go once the sleep process is dead.
     hint: "chmod 6xx for absolute mode, chmod +x for symbolic. Run with ./sleeper.sh & , find PID with pgrep -f sleeper, kill -9 <pid>"

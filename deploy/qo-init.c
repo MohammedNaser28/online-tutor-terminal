@@ -359,25 +359,15 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    done\n");
             fprintf(bashrc, "    echo \"Error: server not responding\"\n");
             fprintf(bashrc, "}\n");
-            fprintf(bashrc, "__qo_go() {\n");
-            fprintf(bashrc, "    local level=\"level1\"\n");
-            fprintf(bashrc, "    if [ -f \"/tmp/.qo-current-level\" ]; then\n");
-            fprintf(bashrc, "        level=$(cat \"/tmp/.qo-current-level\")\n");
-            fprintf(bashrc, "    fi\n");
-            fprintf(bashrc, "    local check=\"$HOME/challenges/${level}/check.sh\"\n");
-            fprintf(bashrc, "    if [ -x \"$check\" ]; then\n");
-            fprintf(bashrc, "        if \"$check\" \"$@\"; then\n");
-            fprintf(bashrc, "            __qo_challenge solved \"$level\"\n");
-            fprintf(bashrc, "        fi\n");
-            fprintf(bashrc, "        return\n");
-            fprintf(bashrc, "    fi\n");
-            fprintf(bashrc, "    __qo_challenge go \"$@\"\n");
-            fprintf(bashrc, "}\n");
+            /* EXAM MODE: validation is fully server-side — checkers are
+               stripped from the sandbox at session start, so 'go' always
+               goes through IPC where the server runs the real checker
+               chrooted on the host. Nothing is executed locally. */
             fprintf(bashrc, "alias quest='__qo_challenge quest'\n");
             fprintf(bashrc, "alias level='__qo_challenge level'\n");
             fprintf(bashrc, "alias select='__qo_challenge select'\n");
             fprintf(bashrc, "alias hint='__qo_challenge hint'\n");
-            fprintf(bashrc, "alias go='__qo_go'\n");
+            fprintf(bashrc, "alias go='__qo_challenge go'\n");
             fprintf(bashrc, "alias map='__qo_challenge map'\n");
             fprintf(bashrc, "alias status='__qo_challenge status'\n");
             fprintf(bashrc, "alias logo='__qo_challenge logo'\n");

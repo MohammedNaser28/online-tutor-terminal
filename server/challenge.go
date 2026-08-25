@@ -300,14 +300,16 @@ func loadLevelFiles(rootfsPath string, lvl *ChallengeLevel) {
 		}
 	}
 
+	// EXAM MODE: every checker is pulled out of the sandbox and kept
+	// server-side. Students validate exclusively through 'go' -> IPC ->
+	// RunCheckScript (chrooted, host-side), so nothing about the
+	// validation logic is ever readable inside the sandbox.
+	readFile(filepath.Join(lvlDir, "check.sh"), "check.sh", &lvl.CheckScript)
+
 	if lvl.Validator != nil {
-		// Answer lives server-side — the script must not ship.
-		for attempt := 0; attempt < 10; attempt++ {
-			if err := os.Remove(filepath.Join(lvlDir, "check.sh")); err == nil || os.IsNotExist(err) {
-				break
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
+		// Pure-Go validator levels don't even need their script stored,
+		// but removing it is unconditional either way.
+		lvl.CheckScript = ""
 	}
 
 	readFile(filepath.Join(lvlDir, "init.sh"), "init.sh", &lvl.InitScript)
@@ -360,11 +362,10 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 	}
 	cmd.Env = []string{
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"HOME=/home/ahmed",
-		"USER=ahmed",
-		"LOGNAME=ahmed",
+		"HOME=/root",
+		"USER=root",
+		"LOGNAME=root",
 		"TERM=xterm",
-		"LD_LIBRARY_PATH=/usr/lib:/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu",
 	}
 
 	var sb strings.Builder

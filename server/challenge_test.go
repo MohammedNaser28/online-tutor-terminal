@@ -217,7 +217,7 @@ func TestNormalizeMeta_ExplicitLevels(t *testing.T) {
 
 // ─── loadCheckScripts ───────────────────────────────────────────────────────
 
-func TestLoadCheckScripts_ReadsInitKeepsCheck(t *testing.T) {
+func TestLoadCheckScripts_ReadsAndSecuresAll(t *testing.T) {
 	rootfs, cleanup := createRootfs(t, []int{1})
 	defer cleanup()
 
@@ -238,15 +238,15 @@ func TestLoadCheckScripts_ReadsInitKeepsCheck(t *testing.T) {
 		t.Fatalf("loadCheckScripts: %v", err)
 	}
 
-	if levels[0].CheckScript != "" {
-		t.Errorf("expected empty CheckScript (stays in sandbox), got %q", levels[0].CheckScript)
+	if levels[0].CheckScript != checkContent {
+		t.Errorf("expected check.sh content %q, got %q", checkContent, levels[0].CheckScript)
 	}
 	if levels[0].InitScript != initContent {
 		t.Errorf("expected init.sh content %q, got %q", initContent, levels[0].InitScript)
 	}
 
-	if _, err := os.Stat(filepath.Join(levelDir, "check.sh")); err != nil {
-		t.Error("check.sh should remain in sandbox for local execution")
+	if _, err := os.Stat(filepath.Join(levelDir, "check.sh")); !os.IsNotExist(err) {
+		t.Error("check.sh must be removed from the sandbox (exam mode)")
 	}
 	if _, err := os.Stat(filepath.Join(levelDir, "init.sh")); !os.IsNotExist(err) {
 		t.Error("init.sh should be deleted from sandbox")
