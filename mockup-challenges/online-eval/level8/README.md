@@ -4,17 +4,17 @@ Git
 
 ## Level Description
 
-1. Linus Trovalds is not better than us! we made our own 'version control' tool called `lit`! (don't tell but it's just git).
+1. Linus Torvalds is not better than us! we made our own 'version control' tool called `lit`! (don't tell but it's just git).
 
 2. Find the `lit-pull.sh` script and run it to fetch remote changes.
 
 3. After running it you'll find some files in your current working directory representing some commands.
 
-4. First edit the `project.java` file and add the text "System.out.println("lit is lit!")" to it.
+4. First edit the `project.java` file and add exactly this line to it:  System.out.println("lit is lit!")
 
-5. then ***in the right order as if you were using git commands*** pass the correctly named files to `lit.sh` to:
+5. Then, ***in the right order as if you were using git commands***, pass the correctly named files to `lit.sh` to:
 	- add your changes to the staging area.
-	- commit to your responsibilties and those changes!
+	- commit those changes!
 	- push them from local to remote.
 
 > [!NOTE]	

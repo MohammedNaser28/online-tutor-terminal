@@ -14,4 +14,4 @@ Basic commands
 
 5. Pass them as parameters in this order `file-dir-file` to validate your solution ***without any spaces or delimiters in between***. 
 
-### Example submition: `./check.sh 790` 
+### Example submission shape: `./check.sh 790`

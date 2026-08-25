@@ -11,6 +11,6 @@ Pipelining and Redirection
 
 ## Level Description
 
-1. Write the command `path` to see your path variable, and log ***exactly** the error only that shows up to `log` file.
+1. Write the command `path` to see your path variable, and log exactly the error output only to the `log` file.
 
-2. Use the `echo` command with the  path variable `$PATH`, and pipeline your work smoothly to get exactly how many lines exist in the variable.
+2. Use `echo $PATH` and pipeline into `wc -l` to get exactly how many lines exist in the variable.

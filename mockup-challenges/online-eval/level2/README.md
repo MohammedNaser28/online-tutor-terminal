@@ -5,13 +5,14 @@ Basic commands
 ---
 
 > [!NOTE]
-> Don't forget to run `check.sh` ***inside*** `link_lab` to get your key.
+> Stay **inside** `link_lab` and validate your work by typing `go`
+> (this runs the level's check script against your current directory).
 
 ---
 
 ## Level Description
 
-1. Create a directory `link_lab` with a base file `original.txt`  to link against.
+1. Create a directory `link_lab` with a base file `original.txt` to link against.
 
 2. Generate one of each link type pointing to your original file.
 
