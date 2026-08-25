@@ -380,6 +380,16 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "alias logo='__qo_challenge logo'\n");
             fprintf(bashrc, "alias help='__qo_challenge help'\n");
             fprintf(bashrc, "alias clear='printf \"\\033[2J\\033[H\"'\n");
+            /* Dynamic prompt: always show which level 'go' will validate.
+               studentName was captured before clearenv(); embed it literally
+               since QO_STUDENT_NAME is no longer in the environment. */
+            fprintf(bashrc, "__qo_prompt() {\n");
+            fprintf(bashrc, "    local lvl=\"level1\"\n");
+            fprintf(bashrc, "    [ -f /tmp/.qo-current-level ] && lvl=$(cat /tmp/.qo-current-level)\n");
+            fprintf(bashrc, "    PS1=\"root@%s:[${lvl#level}] \\w # \"\n",
+                    student_name ? student_name : "qo");
+            fprintf(bashrc, "}\n");
+            fprintf(bashrc, "PROMPT_COMMAND=__qo_prompt\n");
             fclose(bashrc);
         }
 
