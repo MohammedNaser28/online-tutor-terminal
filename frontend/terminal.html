@@ -376,7 +376,29 @@ body {
   #info-box { font-size: 12px; gap: 10px; flex-wrap: wrap; }
   #terminal-wrapper { padding: 8px; }
 
-  /* Hadith gate */
+/* Zen mode toggle */
+#zen-btn {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 350;
+  background: rgba(22, 27, 34, 0.75);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s, color 0.2s;
+}
+#zen-btn:hover { opacity: 1; color: var(--accent-blue); }
+body.zen #header-bar,
+body.zen #mobile-section { display: none; }
+body.zen #terminal-wrapper { padding: 2px; }
+body.zen #zen-btn { opacity: 0.85; }
+/* Hadith gate */
   #hadith-gate { padding: 12px; }
   .hadith-card {
     border-radius: 12px;
@@ -555,6 +577,7 @@ body {
   </div>
 </div>
 <div id="app">
+  <button id="zen-btn" title="Toggle fullscreen terminal (hide header)">⛶</button>
   <div id="banner"></div>
   <div id="header-bar">
     <div id="info-box">
@@ -755,6 +778,11 @@ function connect() {
     if (!logoPrinted) {
       printLogo();
     }
+
+    // Sync the PTY to the real terminal dimensions — without this the
+    // process starts at the server's default 24x80 and full-screen apps
+    // (nano, vim) render broken.
+    setTimeout(function () { fitAddon.fit(); pushTermSize(); }, 60);
 
     term.focus();
   };
@@ -1089,11 +1117,22 @@ if (token) {
     }
   });
 
-  window.addEventListener('resize', function () {
-    fitAddon.fit();
+  function pushTermSize() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
     }
+  }
+
+  window.addEventListener('resize', function () {
+    fitAddon.fit();
+    pushTermSize();
+  });
+
+  // Zen mode — hide the header/mobile bars so full-screen TUIs get the
+  // whole window; refit and push the new size to the PTY.
+  document.getElementById('zen-btn').addEventListener('click', function () {
+    document.body.classList.toggle('zen');
+    setTimeout(function () { fitAddon.fit(); pushTermSize(); }, 60);
   });
 }
 </script>
