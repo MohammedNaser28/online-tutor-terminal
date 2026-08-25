@@ -308,7 +308,9 @@ static int spawn_shell(const char *rootfsPath) {
         setenv("HOME", "/root", 1);
         setenv("USER", "root", 1);
         setenv("LOGNAME", "root", 1);
-        setenv("LANG", "C.UTF-8", 1);
+        /* No LANG/LC_ALL: the rootfs ships no locale data and glibc falls
+           back to the C locale quietly — exporting C.UTF-8 made bash print
+           setlocale warnings on every startup. */
         if (term != NULL && term[0] != '\0') {
             setenv("TERM", term, 1);
         } else {
@@ -331,7 +333,7 @@ static int spawn_shell(const char *rootfsPath) {
             perror("open /root/.bashrc");
         }
         if (bashrc) {
-            fprintf(bashrc, "\nexport LANG=C.UTF-8\nexport LC_ALL=C.UTF-8\n");
+            fprintf(bashrc, "\n");
             fprintf(bashrc, "__qo_challenge() {\n");
             fprintf(bashrc, "    local action=\"$1\"\n");
             fprintf(bashrc, "    shift\n");
@@ -342,6 +344,7 @@ static int spawn_shell(const char *rootfsPath) {
             fprintf(bashrc, "    local req=\"/tmp/.qo-challenge-req\"\n");
             fprintf(bashrc, "    local resp=\"/tmp/.qo-challenge-resp\"\n");
             fprintf(bashrc, "    local tmpReq=\"/tmp/.qo-challenge-req.tmp\"\n");
+            fprintf(bashrc, "    : > \"$resp\"\n");
             fprintf(bashrc, "    printf '%%s' \"$action\" > \"$tmpReq\"\n");
             fprintf(bashrc, "    mv -f \"$tmpReq\" \"$req\"\n");
             fprintf(bashrc, "    local i=1\n");
