@@ -376,7 +376,102 @@ body {
   #info-box { font-size: 12px; gap: 10px; flex-wrap: wrap; }
    #terminal-wrapper { padding: 8px; }
 
-  /* Hadith gate */
+/* Tour */
+#tour-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 23, 0.88);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  padding: 24px;
+}
+#tour-overlay.visible { display: flex; }
+.tour-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: 3px solid var(--accent-blue);
+  border-radius: 14px;
+  padding: 32px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+}
+.tour-step-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  margin-bottom: 10px;
+}
+.tour-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.tour-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+.tour-body code {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: 'SF Mono', monospace;
+  font-size: 13px;
+  color: var(--accent-green);
+}
+.tour-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.tour-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: background 0.2s;
+}
+.tour-dot.active { background: var(--accent-blue); }
+.tour-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.tour-actions .btn {
+  padding: 9px 22px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.btn-tour-next {
+  background: var(--accent-blue);
+  color: #0f1117;
+  margin-left: auto;
+}
+.btn-tour-next:hover { background: #79c0ff; }
+.btn-tour-back {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color) !important;
+}
+.btn-tour-skip {
+  background: none;
+  color: var(--text-secondary);
+}
+.btn-tour-skip:hover { color: var(--text-primary); }
+/* Hadith gate */
   #hadith-gate { padding: 12px; }
   .hadith-card {
     border-radius: 12px;
@@ -474,6 +569,7 @@ body {
       </div>
     </div>
     <div id="connection-status">
+      <button id="tour-btn" title="Replay the tour">🎓 Tour</button>
       <button id="commands-btn" title="Custom commands">❔ Commands</button>
       <span class="status-dot connecting" id="status-dot"></span>
       <span class="status-text connecting" id="status-text">Connecting</span>
@@ -507,6 +603,20 @@ body {
     <div class="hadith-actions">
       <button class="btn btn-hadith-accept" id="hadith-accept">أوافق وأبدأ</button>
       <button class="btn btn-hadith-refuse" id="hadith-refuse">رفض والخروج</button>
+    </div>
+  </div>
+</div>
+
+<div id="tour-overlay">
+  <div class="tour-card">
+    <div class="tour-step-label" id="tour-step">Step 1 of 5</div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-body" id="tour-body"></div>
+    <div class="tour-dots" id="tour-dots"></div>
+    <div class="tour-actions">
+      <button class="btn btn-tour-skip" id="tour-skip">Skip</button>
+      <button class="btn btn-tour-back" id="tour-back" style="display:none;">Back</button>
+      <button class="btn btn-tour-next" id="tour-next">Next</button>
     </div>
   </div>
 </div>
@@ -707,6 +817,7 @@ if (token) {
   document.getElementById('hadith-accept').addEventListener('click', function () {
     hadithGate.classList.add('hidden');
     connect();
+    showTour();
   });
   document.getElementById('hadith-refuse').addEventListener('click', function () {
     closed = true; // block auto-reconnect paths
@@ -813,6 +924,85 @@ if (token) {
     var el = document.getElementById('mobile-keys');
     el.classList.toggle('visible');
   });
+
+  // --- Tour ---
+  var tourSteps = [
+    {
+      title: '🎯 Welcome, Agent',
+      body: 'Your mission: solve Linux challenges level by level. ' +
+            'Watch your prompt — it always shows the active level: ' +
+            '<code>root@you:[2] ~#</code> means anything you run with <code>go</code> checks level 2.'
+    },
+    {
+      title: '📜 Get the question',
+      body: 'Type <code>quest</code> to read the current level\'s briefing. ' +
+            'Peek or jump anywhere with <code>quest 3</code>.'
+    },
+    {
+      title: '🛠️ Solve it',
+      body: 'Each level\'s files live in its own directory: <code>/tmp/level1</code>, ' +
+            '<code>/tmp/level2</code>, … Start with <code>cd /tmp/levelN</code> and do the task there. ' +
+            'The question always tells you where to work.'
+    },
+    {
+      title: '✅ Check your solution',
+      body: 'Type <code>go</code> to validate the active level. Some levels take an answer as input: ' +
+            '<code>go 790</code> or <code>go 5 10</code>. ' +
+            'Pass → 🎉 and automatic advance. Fail → try again, nothing breaks.'
+    },
+    {
+      title: '🧰 Helpers',
+      body: '<code>hint</code> for a nudge · <code>map</code> for progress · ' +
+            '<code>status</code> for the current state · <code>level &lt;n&gt;</code> to switch levels. ' +
+            'The ❔ Commands button lists everything anytime.'
+    }
+  ];
+  var tourIdx = 0;
+  var tourOverlay = document.getElementById('tour-overlay');
+
+  function renderTour() {
+    var s = tourSteps[tourIdx];
+    document.getElementById('tour-step').textContent =
+      'Step ' + (tourIdx + 1) + ' of ' + tourSteps.length;
+    document.getElementById('tour-title').innerHTML = s.title;
+    document.getElementById('tour-body').innerHTML = s.body;
+    document.getElementById('tour-back').style.display = tourIdx > 0 ? '' : 'none';
+    document.getElementById('tour-next').textContent =
+      tourIdx === tourSteps.length - 1 ? 'Start Solving 🚀' : 'Next';
+    var dots = '';
+    for (var i = 0; i < tourSteps.length; i++) {
+      dots += '<span class="tour-dot' + (i === tourIdx ? ' active' : '') + '"></span>';
+    }
+    document.getElementById('tour-dots').innerHTML = dots;
+  }
+
+  function showTour() {
+    tourIdx = 0;
+    renderTour();
+    tourOverlay.classList.add('visible');
+  }
+
+  function endTour() {
+    tourOverlay.classList.remove('visible');
+    term.focus();
+  }
+
+  document.getElementById('tour-next').addEventListener('click', function () {
+    if (tourIdx < tourSteps.length - 1) {
+      tourIdx++;
+      renderTour();
+    } else {
+      endTour();
+    }
+  });
+  document.getElementById('tour-back').addEventListener('click', function () {
+    if (tourIdx > 0) {
+      tourIdx--;
+      renderTour();
+    }
+  });
+  document.getElementById('tour-skip').addEventListener('click', endTour);
+  document.getElementById('tour-btn').addEventListener('click', showTour);
 
   // --- Commands panel ---
   var cmdPanel = document.getElementById('commands-panel');
