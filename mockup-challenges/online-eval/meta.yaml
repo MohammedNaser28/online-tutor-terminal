@@ -1,0 +1,119 @@
+title: "Linux Fundamentals Evaluation"
+difficulty: "medium"
+story: |
+  🐧 Welcome to the Linux Fundamentals evaluation.
+  Ten levels covering the core command-line skills: navigation, links,
+  pipes, users and permissions, file search, archiving, git concepts,
+  and process control. Solve each level, then run 'go' to validate.
+levels:
+  - id: 1
+    title: "Level 1: Basic Commands"
+    question: |
+      1. Extract the `archive` file and check its contents.
+      2. List ALL of its contents and look for any hidden layers.
+      3. Recursively look inside the inner directories.
+      4. Map out the words of hidden objects to create a password of 3 numbers,
+         one from each hidden object's name, in this order: file-dir-file.
+      5. Validate with: go <password>   (no spaces or delimiters)
+
+      Example submission shape: ./check.sh 790
+    hint: "ls -laR shows everything including hidden entries. The order matters: first a hidden FILE number, then a hidden DIR number, then another hidden FILE number."
+
+  - id: 2
+    title: "Level 2: Links"
+    question: |
+      Work inside the level directory:
+      1. Create a directory `link_lab`, enter it, create `original.txt` with the text "Linux is awesome".
+      2. Generate one HARD link (`hard_link.txt`) and one SOFT link (`soft_link.txt`) pointing to original.txt.
+      3. Append "Learning links" to the soft link and check all three files show both lines.
+      4. Delete `original.txt`, then try reading both links.
+      5. Run ./check.sh INSIDE link_lab to get your key.
+    hint: "ln for hard link, ln -s for soft link. Appending via the soft link writes through to the inode; deleting the original kills only the soft link's target."
+
+  - id: 3
+    title: "Level 3: Pipelining & Redirection"
+    question: |
+      In the level directory:
+      1. Run the command `path` — it doesn't exist! Log EXACTLY the error output to a file named `log`.
+      2. Count how many lines `echo $PATH` outputs when piped to wc -l.
+      3. Submit the count: ./check.sh <number>
+    hint: "Redirect only stderr with 2> . Then echo $PATH | wc -l gives you the answer."
+
+  - id: 4
+    title: "Level 4: Users & Permissions"
+    question: |
+      1. Create user `penguin`.
+      2. Create group `pengroup` (the sandbox uses busybox: `addgroup`).
+      3. Change penguin's primary group to `pengroup`.
+      4. Delete penguin's OLD primary group with `delgroup penguin`.
+      5. Run ./check.sh to validate.
+    hint: "useradd, addgroup pengroup, then usermod -g pengroup penguin to change the primary group, delgroup penguin to remove the old one."
+
+  - id: 5
+    title: "Level 5: Searching for Files"
+    question: |
+      Inside the `files` directory there is exactly ONE file whose name is
+      exactly four characters long ending in `.py`.
+      Find it and submit just its name WITHOUT path or extension:
+          go <name>
+      (e.g. if it were files/test/zero.py you'd submit: go zero)
+    hint: "find files -name '??.py' — or use ls with a glob pattern."
+
+  - id: 6
+    title: "Level 6: Compression & Text Processing"
+    question: |
+      1. Uncompress LinuxDistros.tar.gz in the level directory.
+      2. Extract ONLY these files from the archive: Random.txt, Debian.txt, Fedora.txt
+      3. Count punctuation characters in each extracted file.
+      4. Which file has the MOST punctuation? Submit its full name:
+          go Random.txt   <- example format
+      Don't forget chmod +x check.sh!
+    hint: "tar -tzf lists contents, tar -xzf <archive> <file1> <file2> extracts specific files. grep -o '[[:punct:]]' file | wc -l counts punctuation."
+
+  - id: 7
+    title: "Level 7: Find & Text Processing"
+    question: |
+      Among person_N.txt files in the level directory:
+      1. Use find to locate REGULAR FILES that are EXACTLY 55 bytes.
+      2. From each matching file extract the year on the date: line.
+      3. Pass BOTH person numbers whose year is greater than 2000, ascending:
+          go <first> <second>
+    hint: "find . -type f -size 55c — then grep the date line from each match."
+
+  - id: 8
+    title: "Level 8: Git Concepts (lit)"
+    question: |
+      We made our own version control tool called `lit` (it's just git, don't tell Linus).
+      1. Find lit-pull.sh, make it executable and run it to fetch remote changes.
+      2. Edit project.java so it contains exactly: System.out.println("lit is lit!")
+      3. Pass the three commands in the correct git order as arguments IN ONE LINE:
+          ./lit.sh add commit push
+      4. Then validate with: ./check.sh add commit push
+      Make sure all scripts are executable!
+    hint: "The git workflow order is always: add -> commit -> push."
+
+  - id: 9
+    title: "Level 9: Links"
+    question: |
+      Your app looks for `app_config` directly in your current directory,
+      but the real config lives at the absolute path:
+          /temp/var/opt/app/hidden_config.cfg
+
+      1. Do NOT copy or move the original file.
+      2. Create a symbolic link named `app_config` in your current directory
+         pointing at that exact absolute path.
+      3. Run ./check.sh to validate.
+
+      Hint: man ln — pay attention to the flag for symbolic links.
+    hint: "ln -s /temp/var/opt/app/hidden_config.cfg app_config"
+
+  - id: 10
+    title: "Level 10: Processes, Users & Permissions"
+    question: |
+      1. Create a bash script `sleeper.sh` containing a single sleep command.
+      2. Add user `agent` WITH a home directory (-m).
+      3. Using ABSOLUTE mode (numbers), give user agent read+write permission on the script.
+      4. Using SYMBOLIC mode, give yourself execute permission, then run it in background.
+      5. Find the script's PID and kill it with the appropriate signal flag.
+      6. Run ./check.sh once the sleep process is dead.
+    hint: "chmod 6xx for absolute mode, chmod +x for symbolic. Run with ./sleeper.sh & , find PID with pgrep -f sleeper, kill -9 <pid>"
