@@ -14,10 +14,11 @@ levels:
       3. Recursively look inside the inner directories.
       4. Map out the words of hidden objects to create a password of 3 numbers,
          one from each hidden object's name, in this order: file-dir-file.
-      5. Validate with: go <password>   (no spaces or delimiters)
-
-      Example submission shape: ./check.sh 790
+      5. Validate with: go <password>   (no spaces or delimiters, e.g. go 790)
     hint: "ls -laR shows everything including hidden entries. The order matters: first a hidden FILE number, then a hidden DIR number, then another hidden FILE number."
+    validator:
+      type: flag
+      value: "132"
 
   - id: 2
     title: "Level 2: Links"
@@ -36,8 +37,11 @@ levels:
       In the level directory:
       1. Run the command `path` — it doesn't exist! Log EXACTLY the error output to a file named `log`.
       2. Count how many lines `echo $PATH` outputs when piped to wc -l.
-      3. Submit the count: ./check.sh <number>
+      3. Submit the count: go <number>
     hint: "Redirect only stderr with 2> . Then echo $PATH | wc -l gives you the answer."
+    validator:
+      type: flag
+      value: "1"
 
   - id: 4
     title: "Level 4: Users & Permissions"
@@ -58,6 +62,9 @@ levels:
           go <name>
       (e.g. if it were files/test/zero.py you'd submit: go zero)
     hint: "find files -name '??.py' — or use ls with a glob pattern."
+    validator:
+      type: flag
+      value: "main"
 
   - id: 6
     title: "Level 6: Compression & Text Processing"
@@ -69,6 +76,9 @@ levels:
           go Random.txt   <- example format
       Don't forget chmod +x check.sh!
     hint: "tar -tzf lists contents, tar -xzf <archive> <file1> <file2> extracts specific files. grep -o '[[:punct:]]' file | wc -l counts punctuation."
+    validator:
+      type: flag
+      value: "Random.txt"
 
   - id: 7
     title: "Level 7: Find & Text Processing"
@@ -79,6 +89,9 @@ levels:
       3. Pass BOTH person numbers whose year is greater than 2000, ascending:
           go <first> <second>
     hint: "find . -type f -size 55c — then grep the date line from each match."
+    validator:
+      type: flag
+      value: "5 10"
 
   - id: 8
     title: "Level 8: Git Concepts (lit)"
@@ -88,9 +101,12 @@ levels:
       2. Edit project.java so it contains exactly: System.out.println("lit is lit!")
       3. Pass the three commands in the correct git order as arguments IN ONE LINE:
           ./lit.sh add commit push
-      4. Then validate with: ./check.sh add commit push
+      4. Then validate with: go add commit push
       Make sure all scripts are executable!
     hint: "The git workflow order is always: add -> commit -> push."
+    validator:
+      type: flag
+      value: "add commit push"
 
   - id: 9
     title: "Level 9: Links"

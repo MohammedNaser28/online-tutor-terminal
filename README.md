@@ -113,3 +113,16 @@ Students are root in an isolated environment (user/mount/PID/net/IPC/cgroup name
 ```bash
 cd server && go test ./...
 ```
+
+## Team & Thanks
+
+qo was born when **Ahmed Yasser** pitched it as a sandbox idea for Summer CTF and built the first product version. Huge thanks to everyone who brought it to life:
+
+| Name | Role | GitHub | LinkedIn |
+|------|------|--------|----------|
+| [Ahmed Yasser](https://github.com/ahmedYasserM) | Started qo as a sandbox idea for Summer CTF — first product version | [@ahmedYasserM](https://github.com/ahmedYasserM) | [ahmedyasser2592](https://www.linkedin.com/in/ahmedyasser2592) |
+| [Amna](https://github.com/thisisamna) | Contributor | [@thisisamna](https://github.com/thisisamna) | — |
+| [Zyad Salah](https://github.com/zyad-elkhewekh) | Contributor | [@zyad-elkhewekh](https://github.com/zyad-elkhewekh) | — |
+| [Mohammed Naser](https://github.com/MohammedNaser28) | Contributor | [@MohammedNaser28](https://github.com/MohammedNaser28) | [mohammed-naser](https://www.linkedin.com/in/mohammed-naser-2253a0235/) |
+
+Thank you all for making qo possible. 💙

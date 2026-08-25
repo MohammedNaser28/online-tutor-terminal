@@ -236,8 +236,9 @@ func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 			lvlDir = filepath.Join(rootfsPath, "rootfs", "tmp", fmt.Sprintf("level%d", lvl.ID))
 		}
 
-		// Read and remove each file with per-file retry — the directory
-		// may exist before all its contents are written.
+		// Levels with a pure-Go validator are checked server-side: their
+		// check.sh would leak the expected answer, so remove it from the
+		// sandbox entirely. The in-shell 'go' falls back to IPC for these.
 		readFile := func(path, label string, store *string) {
 			for attempt := 0; attempt < 10; attempt++ {
 				data, err := os.ReadFile(path)
@@ -252,6 +253,16 @@ func loadCheckScripts(rootfsPath string, levels []ChallengeLevel) error {
 				}
 				if os.IsNotExist(err) {
 					return
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		}
+
+		if lvl.Validator != nil {
+			// Answer lives server-side — the script must not ship.
+			for attempt := 0; attempt < 10; attempt++ {
+				if err := os.Remove(filepath.Join(lvlDir, "check.sh")); err == nil || os.IsNotExist(err) {
+					break
 				}
 				time.Sleep(50 * time.Millisecond)
 			}
@@ -564,6 +575,29 @@ func (s *Server) pollChallengeRequests(session *Session) {
 				return 0
 			}
 
+			parseNamedLevel := func(s string) int {
+				// Like parseArgLevel but rejects bare numbers: a numeric
+				// argument to an action may be the ANSWER (e.g. go 132),
+				// so only explicit levelN-style patterns count as switches.
+				if s == "" {
+					return 0
+				}
+				var num int
+				if _, err := fmt.Sscanf(s, "level%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "Level-%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "Level%d", &num); err == nil && num > 0 {
+					return num
+				}
+				if _, err := fmt.Sscanf(s, "level-%d", &num); err == nil && num > 0 {
+					return num
+				}
+				return 0
+			}
+
 			switch action {
 			case "quest":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
@@ -627,7 +661,7 @@ func (s *Server) pollChallengeRequests(session *Session) {
 
 			case "go":
 				if session.Challenge != nil && len(session.Challenge.Levels) > 0 {
-					if targetLvl := parseArgLevel(arg); targetLvl > 0 {
+					if targetLvl := parseNamedLevel(arg); targetLvl > 0 {
 						session.Challenge.SetLevel(targetLvl)
 						arg = ""
 					}
