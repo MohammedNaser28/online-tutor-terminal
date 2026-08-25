@@ -180,10 +180,16 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		"-d", s.config.QoDuration,
 	)
 
-	cmd.Env = append(os.Environ(),
-		"QO_STUDENT_NAME="+session.StudentID,
-		"QO_SESSION_PATH="+sessionRootfs,
-	)
+	// Explicit allowlist: the server process may carry secrets (archive
+	// password, admin token) or host-specific settings that must never
+	// reach the sandbox. Only what qo start actually needs passes through.
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"TERM=xterm-256color",
+		"LANG=C.UTF-8",
+		"QO_STUDENT_NAME=" + session.StudentID,
+		"QO_SESSION_PATH=" + sessionRootfs,
+	}
 
 	master, slave, err := pty.Open()
 	if err != nil {

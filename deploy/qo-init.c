@@ -294,18 +294,27 @@ static int spawn_shell(const char *rootfsPath) {
             perror("ioctl TIOCSCTTY");
         }
 
-        /* The sandbox rootfs differs from the host filesystem; never trust
-           the inherited PATH (the server may have been launched from a
-           compositor/systemd environment with host-only directories). */
+        /* Capture what we need, then wipe everything else. The inherited
+           environment may contain server secrets (archive passwords, admin
+           tokens) and host-specific settings that break tools inside the
+           sandbox (e.g. MANPAGER pipelines referencing binaries the rootfs
+           doesn't have). */
+        const char *term = getenv("TERM");
+        const char *student_name = getenv("QO_STUDENT_NAME");
+
+        clearenv();
+
         setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", 1);
-        /* Same for HOME: the server may run via `sudo -E` which keeps the
-           invoking user's HOME, so bash would miss /root/.bashrc entirely
-           (aliases like quest/go/map live there). */
         setenv("HOME", "/root", 1);
         setenv("USER", "root", 1);
         setenv("LOGNAME", "root", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        if (term != NULL && term[0] != '\0') {
+            setenv("TERM", term, 1);
+        } else {
+            setenv("TERM", "xterm", 1);
+        }
 
-        const char *student_name = getenv("QO_STUDENT_NAME");
         if (student_name) {
             char ps1[256];
             snprintf(ps1, sizeof(ps1), "root@%s:~# ", student_name);
