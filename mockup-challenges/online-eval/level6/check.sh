@@ -1,5 +1,8 @@
 #!/bin/bash
 
+BASE="$(cd "$(dirname "$0")" && pwd)"
+cd "$BASE" || exit 1
+
 if [ -z "$1" ]; then
     echo "[FAIL] No file provided. You must pass the file with the most punctuation as an argument."
     exit 1
@@ -10,7 +13,6 @@ if [ "$1" == "Random.txt" ]; then
 else
     echo "[FAIL] Incorrect file. You passed '$1', which is not the file with the maximum punctuation."
 fi
-
 
 TARGET_FILES=("Random.txt" "Debian.txt" "Fedora.txt")
 ALL_EXTRACTED=true

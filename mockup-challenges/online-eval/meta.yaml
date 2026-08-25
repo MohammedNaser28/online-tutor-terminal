@@ -111,17 +111,17 @@ levels:
   - id: 9
     title: "Level 9: Links"
     question: |
-      Your app looks for `app_config` directly in your current directory,
+      Your app looks for `app_config` in your HOME directory (/root),
       but the real config lives at the absolute path:
           /temp/var/opt/app/hidden_config.cfg
 
       1. Do NOT copy or move the original file.
-      2. Create a symbolic link named `app_config` in your current directory
+      2. In your HOME directory, create a symbolic link named `app_config`
          pointing at that exact absolute path.
-      3. Run ./check.sh to validate.
+      3. Validate with: go
 
       Hint: man ln — pay attention to the flag for symbolic links.
-    hint: "ln -s /temp/var/opt/app/hidden_config.cfg app_config"
+    hint: "cd ~ then: ln -s /temp/var/opt/app/hidden_config.cfg ~/app_config"
 
   - id: 10
     title: "Level 10: Processes, Users & Permissions"
