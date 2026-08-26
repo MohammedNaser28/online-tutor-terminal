@@ -16,3 +16,5 @@ qo/pkg/sandbox/logo.txt
 qo-inin
 qo
 summer-linux/
+# runtime user data (logs, transcripts)
+data/

@@ -251,6 +251,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	session.Difficulty = s.metaDifficulty
 
 	s.removeFromQueue(studentID)
+	LogEvent(studentID, session.Token, "join", "session created")
 
 	writeJSON(w, http.StatusOK, joinResponse{
 		Status:     "success",

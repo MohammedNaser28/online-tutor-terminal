@@ -18,6 +18,7 @@ type Config struct {
 	MaxConcurrent int
 	GracePeriod   time.Duration
 	IdleTimeout   time.Duration
+	DataDir       string
 	QoDuration    string
 	LogLevel      string
 }
@@ -100,6 +101,11 @@ func LoadConfig() (*Config, error) {
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
+	}
+
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "data"
 	}
 
 	return &Config{

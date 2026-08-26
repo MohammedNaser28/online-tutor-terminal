@@ -768,6 +768,8 @@ func (s *Server) pollChallengeRequests(session *Session) {
 						outSb.WriteByte('\n')
 					}
 
+					LogEvent(session.StudentID, session.Token, "go_attempt",
+						fmt.Sprintf("level=%d passed=%v", level.ID, passed))
 					if err != nil {
 						outSb.WriteString(fmt.Sprintf("\033[31m❌ Check error: %s\033[0m", err.Error()))
 					} else if passed {

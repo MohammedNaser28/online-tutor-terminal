@@ -75,6 +75,7 @@ func (s *Server) handleAdminKill(w http.ResponseWriter, r *http.Request) {
 	session.Close()
 	s.manager.RemoveSession(token)
 	log.Printf("admin killed session %s (%s)", token, name)
+	LogEvent(name, token, "admin_kill", "")
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "killed"})
 }

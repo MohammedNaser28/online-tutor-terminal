@@ -280,6 +280,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err == nil {
 		milestone("ws-open")
+		LogEvent(session.StudentID, token, "connect", "")
 	}
 	if err != nil {
 		log.Printf("ws upgrade (new %s): %v", token, err)
@@ -300,6 +301,15 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		pongWait   = 30 * time.Second
 	)
 
+	// Raw PTY capture: everything the student's terminal displays is
+	// recorded for exam auditing. Output-only is sufficient — the shell
+	// echoes typed input.
+	transcript := OpenTranscript(srv.config.DataDir, session.StudentID)
+	if transcript != nil {
+		defer transcript.Close()
+		LogEvent(session.StudentID, token, "recording_started", "")
+	}
+
 	conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -312,6 +322,9 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		for {
 			n, err := term.Read(buf)
 			if n > 0 {
+				if transcript != nil {
+					transcript.Write(buf[:n])
+				}
 				connMu.Lock()
 				err := conn.WriteMessage(websocket.TextMessage, buf[:n])
 				connMu.Unlock()
@@ -440,6 +453,7 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 	if session.State() == SessionActive {
 		log.Printf("session %s disconnected, entering orphaned state", token)
 		session.SetState(SessionOrphaned)
+		LogEvent(session.StudentID, token, "disconnect", "orphaned")
 	}
 	session.mu.Unlock()
 

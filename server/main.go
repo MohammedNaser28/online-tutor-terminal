@@ -19,6 +19,9 @@ func main() {
 	}
 
 	initLogLevel(cfg.LogLevel)
+	if err := InitDataDir(cfg.DataDir); err != nil {
+		log.Fatalf("data dir error: %v", err)
+	}
 	logInfo("starting server on :%d", cfg.Port)
 
 	srv := NewServer(cfg)
