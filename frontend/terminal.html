@@ -662,6 +662,15 @@ body.zen #zen-btn { opacity: 0.85; }
     <div class="cmd-item"><span class="cmd-name">map</span><span class="cmd-desc">Show all levels and your progress</span></div>
     <div class="cmd-item"><span class="cmd-name">status</span><span class="cmd-desc">Show current level and completion state</span></div>
     <div class="cmd-item"><span class="cmd-name">help</span><span class="cmd-desc">Print this list inside the terminal</span></div>
+    <div class="cmd-item" style="border-top: 1px solid var(--border-color); margin-top: 6px; padding-top: 10px;">
+      <span class="cmd-name" style="color: var(--accent-yellow);">⚠ Good to know</span>
+      <span class="cmd-desc">
+        • You are already root — no <code>sudo</code>, run commands directly.<br>
+        • <code>Creating mailbox file: No such file or directory</code> is a harmless warning — ignore it.<br>
+        • Work inside each level's folder (<code>~/challenges/levelN</code>) — exception: Level 9's
+        <code>app_config</code> link goes in your HOME (<code>~</code>).
+      </span>
+    </div>
   </div>
 </div>
 
@@ -996,7 +1005,14 @@ if (token) {
       title: '🎯 Welcome, Agent',
       body: 'Your mission: solve Linux challenges level by level. ' +
             'Watch your prompt — it always shows the active level: ' +
-            '<code>root@you:[2] ~#</code> means anything you run with <code>go</code> checks level 2.'
+            '<code>root@you:[2] ~#</code> means anything you run with <code>go</code> checks level 2.' +
+            '<br><br><b>⚠️ Good to know:</b><br>' +
+            '• You are <b>already root</b> — <code>sudo</code> does not exist here, run commands directly.<br>' +
+            '• <code>Creating mailbox file: No such file or directory</code> after adding users is a ' +
+            '<b>harmless warning</b> — ignore it.<br>' +
+            '• Do your work inside the level\'s own folder (<code>~/challenges/levelN</code>). ' +
+            '<b>Exception:</b> Level 9\'s <code>app_config</code> link must be created in your ' +
+            '<b>HOME (<code>~</code>)</b>, not in a level folder.'
     },
     {
       title: '📜 Get the question',
