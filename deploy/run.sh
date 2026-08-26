@@ -20,6 +20,19 @@ echo "=== Building server binary ==="
 cd "$ROOT/server"
 CGO_ENABLED=0 go build -o "$ROOT/deploy/server" .
 
+echo "=== Staleness guard: binaries must be newer than all sources ==="
+check_fresh() {
+    local bin="$1" dir="$2"
+    local newer
+    newer=$(find "$dir" -name '*.go' -newer "$bin" -print -quit 2>/dev/null || true)
+    if [ -n "$newer" ]; then
+        echo "ERROR: $bin is older than source file: $newer" >&2
+        exit 1
+    fi
+}
+check_fresh "$ROOT/deploy/qo"     "$ROOT/qo"
+check_fresh "$ROOT/deploy/server" "$ROOT/server"
+
 echo "=== Build complete ==="
 echo ""
 echo "Deploy these to the event machine:"
