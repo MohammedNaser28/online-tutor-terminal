@@ -136,3 +136,13 @@
 {"detail":"level=7 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:30:27Z"}
 {"detail":"level=7 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:30:41Z"}
 {"detail":"orphaned","event":"disconnect","student":"20251700870","token":"3f028c8f-9a1a-4c5c-8bb0-5195e1ce4067","ts":"2026-08-26T13:33:03Z"}
+{"detail":"level=7 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:35:15Z"}
+{"detail":"level=7 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:35:20Z"}
+{"detail":"level=7 passed=true","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:35:25Z"}
+{"detail":"orphaned","event":"disconnect","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:35:51Z"}
+{"detail":"orphaned","event":"disconnect","student":"20251700870","token":"3f028c8f-9a1a-4c5c-8bb0-5195e1ce4067","ts":"2026-08-26T13:40:23Z"}
+{"detail":"","event":"admin_kill","student":"20251700870","token":"3f028c8f-9a1a-4c5c-8bb0-5195e1ce4067","ts":"2026-08-26T13:42:13Z"}
+{"detail":"","event":"admin_kill","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T13:42:23Z"}
+{"detail":"ip=196.130.243.188 result=bad_code","event":"join_attempt","student":"20251700870","token":"","ts":"2026-08-26T13:45:54Z"}
+{"detail":"ip=196.130.243.188 result=bad_code","event":"join_attempt","student":"20251700870","token":"","ts":"2026-08-26T13:45:56Z"}
+{"detail":"ip=196.130.243.188 result=bad_code","event":"join_attempt","student":"20251700870","token":"","ts":"2026-08-26T13:46:27Z"}

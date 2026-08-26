@@ -89,7 +89,7 @@ Students open `http://<host>:8080`, enter the event code and their name, and get
 | `ARCHIVE_PATH` / `ARCHIVE_PASSWORD` / `ARCHIVE_KEY` | — | Challenge archive and credentials |
 | `QO_BINARY_PATH` | — | Path to the `qo` binary |
 | `QO_DURATION` | — | Session length per student (e.g. `60m`) |
-| `MAX_CONCURRENT` | `8` | Max simultaneous sandboxes |
+| `MAX_CONCURRENT` | `10` | Max simultaneous sandboxes |
 | `IDLE_TIMEOUT` | `600` | Seconds of inactivity before a session is closed (warns 60s prior) |
 | `GRACE_PERIOD` | `45` | Seconds a disconnected session stays recoverable |
 | `PORT` | `8080` | Listen port |

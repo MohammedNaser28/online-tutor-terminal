@@ -26,7 +26,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Port != 8080 {
 		t.Errorf("expected port 8080, got %d", cfg.Port)
 	}
-	if cfg.MaxConcurrent != 8 {
+	if cfg.MaxConcurrent != 10 {
 		t.Errorf("expected max 8, got %d", cfg.MaxConcurrent)
 	}
 	if cfg.GracePeriod != 45*time.Second {

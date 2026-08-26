@@ -55,7 +55,7 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("ARCHIVE_PATH %q: %w", archivePath, err)
 	}
 
-	maxConcurrent, err := envInt("MAX_CONCURRENT", 8)
+	maxConcurrent, err := envInt("MAX_CONCURRENT", 10)
 	if err != nil {
 		return nil, fmt.Errorf("MAX_CONCURRENT: %w", err)
 	}
