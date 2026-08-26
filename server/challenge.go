@@ -333,6 +333,29 @@ func runInitScript(rootfsPath string, level ChallengeLevel) error {
 	return nil
 }
 
+// ensureChrootDevs guarantees /dev/null-style paths resolve inside the
+// checker's chroot even when the rootfs lives on a filesystem mounted with
+// the 'nodev' option (Arch mounts /tmp this way) — there, device nodes
+// ALWAYS return EACCES on open, even for root. Broken nodes are replaced
+// with regular files: check scripts only write to /dev/null and read EOF.
+func ensureChrootDevs(chrootPath string) {
+	devDir := filepath.Join(chrootPath, "dev")
+	if err := os.MkdirAll(devDir, 0755); err != nil {
+		return
+	}
+	for _, name := range []string{"null", "zero", "full"} {
+		p := filepath.Join(devDir, name)
+		if f, err := os.OpenFile(p, os.O_RDWR, 0); err == nil {
+			f.Close()
+			continue // working node (or already a regular file)
+		}
+		os.Remove(p)
+		if err := os.WriteFile(p, []byte{}, 0666); err == nil {
+			log.Printf("replaced unusable device node %s with a plain file (nodev mount?)", p)
+		}
+	}
+}
+
 func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScript string) (bool, string, error) {
 	if checkScript == "" {
 		return false, "No check script found for this level.", nil
@@ -341,9 +364,12 @@ func RunCheckScript(rootfsPath string, levelID int, stdinInput string, checkScri
 	levelDir := findLevelDir(rootfsPath, levelID)
 	chrootPath := filepath.Join(rootfsPath, "rootfs")
 
+	// /dev/null & friends must be openable inside the chroot (see above).
+	ensureChrootDevs(chrootPath)
+
 	// Go applies Chroot before Chdir, so the working directory must be
 	// expressed relative to the inside of the chroot.
-	cwd := "/tmp/" + filepath.Base(levelDir)
+	cwd := "/root/challenges/" + filepath.Base(levelDir)
 	if rel, err := filepath.Rel(chrootPath, levelDir); err == nil && !strings.HasPrefix(rel, "..") {
 		cwd = "/" + rel
 	}
