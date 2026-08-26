@@ -5,7 +5,8 @@ TARGET_SCRIPT="sleeper.sh"
 if [ -f "$TARGET_SCRIPT" ]; then
     echo "[PASS] '$TARGET_SCRIPT' exists."
 else
-    echo "[FAIL] '$TARGET_SCRIPT' does not exist."
+    echo "[FAIL] 'sleeper.sh' does not exist."
+    echo "       Expected at: $(pwd)/sleeper.sh"
     exit 1
 fi
 

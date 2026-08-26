@@ -9,6 +9,7 @@ if grep -qi "not found" "$LOG_FILE" 2>/dev/null; then
     echo "[PASS] 'log' contains the correct 'not found' error message."
 else
     echo "[FAIL] 'log' does not contain the expected error. Did you run 'path'?"
+    echo "       Expected log at: $(pwd)/log"
     SUCCESS=false
 fi
 

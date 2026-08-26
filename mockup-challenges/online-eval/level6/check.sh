@@ -20,7 +20,7 @@ for file in "${TARGET_FILES[@]}"; do
         count=$(grep -o '[[:punct:]]' "$file" | wc -l)
         echo " - [OK] '$file' exists. (Punctuation count: $count)"
     else
-        echo " - [MISSING] '$file' does not exist. Did you extract it properly?"
+        echo " - [MISSING] '$file' not found in $(pwd). Did you extract it here?"
         ALL_EXTRACTED=false
     fi
 done

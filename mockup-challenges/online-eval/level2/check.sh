@@ -6,8 +6,17 @@ if [ -f "link_lab/original.txt" ]; then
     exit 1
 fi
 
+if [ ! -d "link_lab" ]; then
+    echo "[FAIL]: No 'link_lab' directory found in this level's folder."
+    echo "       Expected at: $(pwd)/link_lab"
+    echo "       Hint: if you created it somewhere else (e.g. in ~), move it here:"
+    echo "             mv ~/link_lab $(pwd)/"
+    exit 1
+fi
+
 if [ ! -f "link_lab/hard_link.txt" ]; then
-    echo "[FAIL]: 'hard_link.txt' is missing (expected in link_lab/)."
+    echo "[FAIL]: 'hard_link.txt' is missing."
+    echo "       Expected at: $(pwd)/link_lab/hard_link.txt"
     exit 1
 fi
 
