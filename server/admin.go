@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -44,6 +45,13 @@ func (s *Server) handleAdminState(w http.ResponseWriter, r *http.Request) {
 			Created: ses.CreatedAt.UnixMilli(),
 			IP:      ses.IP,
 		})
+	})
+
+	// AllSessions walks a Go map — order changes every poll, which made
+	// the admin table rows jump around. Sort by join time for stable,
+	// meaningful ordering.
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].Created < sessions[j].Created
 	})
 
 	s.queueMu.Lock()
