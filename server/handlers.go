@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log"
 	"net"
@@ -160,7 +161,29 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := clientIP(r)
+	enteredID := func() string {
+		id := r.FormValue("name")
+		if id == "" {
+			id = r.FormValue("id")
+		}
+		return id
+	}
+	attempt := func(result string) {
+		LogEvent(enteredID(), "", "join_attempt",
+			fmt.Sprintf("ip=%s result=%s", ip, result))
+	}
+
+	if s.shutdown {
+		attempt("shutdown_rejected")
+		writeJSON(w, http.StatusServiceUnavailable, joinResponse{
+			Status:  "error",
+			Message: "Event is shutting down, no new sessions accepted",
+		})
+		return
+	}
+
 	if !s.limiter.Allow(ip) {
+		attempt("rate_limited")
 		writeJSON(w, http.StatusTooManyRequests, joinResponse{
 			Status:  "error",
 			Message: "Too many attempts. Please wait before retrying",
@@ -178,6 +201,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	code := r.FormValue("code")
 	if code != s.config.EventCode {
+		attempt("bad_code")
 		writeJSON(w, http.StatusBadRequest, joinResponse{
 			Status:  "error",
 			Message: "Invalid event code",
@@ -185,19 +209,18 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentID := r.FormValue("name")
+	studentID := enteredID()
 	if studentID == "" {
-		studentID = r.FormValue("id")
-	}
-	if studentID == "" {
+		attempt("missing_id")
 		writeJSON(w, http.StatusBadRequest, joinResponse{
 			Status:  "error",
 			Message: "Student name is required",
 		})
 		return
 	}
+	attempt("accepted")
 
-	session, err := s.manager.NewSession(studentID)
+	session, err := s.manager.NewSession(studentID, ip)
 	if err != nil {
 		if strings.Contains(err.Error(), "concurrency cap reached") {
 			s.addToQueue(studentID)
@@ -251,7 +274,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	session.Difficulty = s.metaDifficulty
 
 	s.removeFromQueue(studentID)
-	LogEvent(studentID, session.Token, "join", "session created")
+	LogEvent(studentID, session.Token, "join", "ip="+ip)
 
 	writeJSON(w, http.StatusOK, joinResponse{
 		Status:     "success",

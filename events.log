@@ -1,0 +1,108 @@
+{"detail":"session created","event":"join","student":"222","token":"2be1ec4f-ef84-4725-9181-40e81738eb84","ts":"2026-08-26T09:36:45Z"}
+{"detail":"","event":"connect","student":"222","token":"2be1ec4f-ef84-4725-9181-40e81738eb84","ts":"2026-08-26T09:36:51Z"}
+{"detail":"session created","event":"join","student":"osc","token":"1651a65a-5bf7-4733-84e8-63bb89d4b835","ts":"2026-08-26T09:40:15Z"}
+{"detail":"","event":"connect","student":"osc","token":"1651a65a-5bf7-4733-84e8-63bb89d4b835","ts":"2026-08-26T09:40:17Z"}
+{"detail":"level=4 passed=false","event":"go_attempt","student":"osc","token":"1651a65a-5bf7-4733-84e8-63bb89d4b835","ts":"2026-08-26T09:43:07Z"}
+{"detail":"session created","event":"join","student":"22","token":"486f156e-b82d-4581-8a24-039d3709e677","ts":"2026-08-26T09:51:53Z"}
+{"detail":"session created","event":"join","student":"202","token":"140f594d-4f5d-4b46-9d56-fa07af03598d","ts":"2026-08-26T09:52:59Z"}
+{"detail":"","event":"connect","student":"202","token":"140f594d-4f5d-4b46-9d56-fa07af03598d","ts":"2026-08-26T09:54:20Z"}
+{"detail":"session created","event":"join","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T09:55:21Z"}
+{"detail":"","event":"connect","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T09:55:25Z"}
+{"detail":"session created","event":"join","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T09:55:50Z"}
+{"detail":"","event":"connect","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T09:56:04Z"}
+{"detail":"level=4 passed=false","event":"go_attempt","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T09:56:41Z"}
+{"detail":"level=7 passed=false","event":"go_attempt","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T09:57:07Z"}
+{"detail":"level=7 passed=true","event":"go_attempt","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T09:57:12Z"}
+{"detail":"session created","event":"join","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:00:58Z"}
+{"detail":"","event":"connect","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:01:19Z"}
+{"detail":"session created","event":"join","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T10:01:21Z"}
+{"detail":"","event":"connect","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T10:02:04Z"}
+{"detail":"level=1 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:05:07Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:10:41Z"}
+{"detail":"level=1 passed=true","event":"go_attempt","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T10:10:47Z"}
+{"detail":"session created","event":"join","student":"2023170119","token":"4def08b3-e9bb-4e32-94ab-ca107cc5883d","ts":"2026-08-26T10:12:25Z"}
+{"detail":"","event":"connect","student":"2023170119","token":"4def08b3-e9bb-4e32-94ab-ca107cc5883d","ts":"2026-08-26T10:12:45Z"}
+{"detail":"level=2 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:14:28Z"}
+{"detail":"session created","event":"join","student":"20271500905","token":"cbd0f810-9ca0-49a9-a04a-0769ca2ab198","ts":"2026-08-26T10:17:24Z"}
+{"detail":"","event":"connect","student":"20271500905","token":"cbd0f810-9ca0-49a9-a04a-0769ca2ab198","ts":"2026-08-26T10:18:30Z"}
+{"detail":"level=3 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:19:48Z"}
+{"detail":"","event":"admin_kill","student":"20271500905","token":"cbd0f810-9ca0-49a9-a04a-0769ca2ab198","ts":"2026-08-26T10:21:53Z"}
+{"detail":"","event":"admin_kill","student":"raresoup","token":"9eda6f51-05a3-4c41-94b4-c27336c093c2","ts":"2026-08-26T10:24:23Z"}
+{"detail":"level=4 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:24:38Z"}
+{"detail":"level=4 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:27:15Z"}
+{"detail":"level=5 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:28:34Z"}
+{"detail":"level=5 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:31:04Z"}
+{"detail":"level=3 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:31:59Z"}
+{"detail":"level=6 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:33:52Z"}
+{"detail":"level=6 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:33:57Z"}
+{"detail":"level=6 passed=true","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:34:05Z"}
+{"detail":"level=6 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:43:18Z"}
+{"detail":"level=1 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T10:46:17Z"}
+{"detail":"level=7 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:46:59Z"}
+{"detail":"level=1 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T10:47:48Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:48:00Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:49:14Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:50:11Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:50:13Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:50:59Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:52:05Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:52:38Z"}
+{"detail":"level=8 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:52:40Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:53:58Z"}
+{"detail":"level=9 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T10:55:01Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:56:06Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:56:37Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T10:57:51Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:01:41Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:02:14Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:02:43Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:02:59Z"}
+{"detail":"level=10 passed=true","event":"go_attempt","student":"20241701125","token":"b170305c-e4cd-4b35-aba6-42e02e3f87d2","ts":"2026-08-26T11:05:57Z"}
+{"detail":"session created","event":"join","student":"zyad-salah","token":"6a3a2dc4-334f-4330-8239-ac963ab3244d","ts":"2026-08-26T11:06:41Z"}
+{"detail":"","event":"connect","student":"zyad-salah","token":"6a3a2dc4-334f-4330-8239-ac963ab3244d","ts":"2026-08-26T11:06:44Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:07:45Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:07:53Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:08:15Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:08:48Z"}
+{"detail":"level=2 passed=true","event":"go_attempt","student":"zyad-salah","token":"6a3a2dc4-334f-4330-8239-ac963ab3244d","ts":"2026-08-26T11:09:19Z"}
+{"detail":"level=1 passed=false","event":"go_attempt","student":"2023170119","token":"4def08b3-e9bb-4e32-94ab-ca107cc5883d","ts":"2026-08-26T11:09:29Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:09:30Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:10:49Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:11:09Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:11:19Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:11:44Z"}
+{"detail":"level=2 passed=true","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:12:10Z"}
+{"detail":"level=9 passed=false","event":"go_attempt","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:15:33Z"}
+{"detail":"level=10 passed=false","event":"go_attempt","student":"zyad-salah","token":"6a3a2dc4-334f-4330-8239-ac963ab3244d","ts":"2026-08-26T11:15:49Z"}
+{"detail":"level=3 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:17:43Z"}
+{"detail":"level=3 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:19:15Z"}
+{"detail":"level=3 passed=false","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:20:33Z"}
+{"detail":"level=3 passed=true","event":"go_attempt","student":"2023170706","token":"4fc40b0d-9c88-4e6d-ba76-e2a38507f5c4","ts":"2026-08-26T11:22:40Z"}
+{"detail":"orphaned","event":"disconnect","student":"202","token":"140f594d-4f5d-4b46-9d56-fa07af03598d","ts":"2026-08-26T11:24:20Z"}
+{"detail":"","event":"connect","student":"20241700559","token":"b3741773-a365-466f-b7d6-2c1519814562","ts":"2026-08-26T11:27:55Z"}
+{"detail":"session created","event":"join","student":"naser","token":"8c8e46b6-35fe-4033-86af-7d7ff760201d","ts":"2026-08-26T11:56:15Z"}
+{"detail":"session created","event":"join","student":"zyaaaaaaaaad","token":"506f5735-7376-4e88-ae76-9a4bec595a83","ts":"2026-08-26T11:56:49Z"}
+{"detail":"","event":"connect","student":"zyaaaaaaaaad","token":"506f5735-7376-4e88-ae76-9a4bec595a83","ts":"2026-08-26T11:56:53Z"}
+{"detail":"","event":"connect","student":"naser","token":"8c8e46b6-35fe-4033-86af-7d7ff760201d","ts":"2026-08-26T11:57:01Z"}
+{"detail":"session created","event":"join","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T11:57:57Z"}
+{"detail":"","event":"connect","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T11:58:03Z"}
+{"detail":"session created","event":"join","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T12:03:14Z"}
+{"detail":"","event":"connect","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T12:03:26Z"}
+{"detail":"session created","event":"join","student":"29798789","token":"58264a26-3005-4eb4-a522-e7d0df76dc72","ts":"2026-08-26T12:07:55Z"}
+{"detail":"","event":"connect","student":"29798789","token":"58264a26-3005-4eb4-a522-e7d0df76dc72","ts":"2026-08-26T12:07:58Z"}
+{"detail":"level=1 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:08:19Z"}
+{"detail":"","event":"admin_kill","student":"29798789","token":"58264a26-3005-4eb4-a522-e7d0df76dc72","ts":"2026-08-26T12:09:14Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:19:16Z"}
+{"detail":"level=2 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:20:24Z"}
+{"detail":"level=3 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:22:59Z"}
+{"detail":"level=4 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:26:55Z"}
+{"detail":"level=1 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T12:28:48Z"}
+{"detail":"level=5 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:29:02Z"}
+{"detail":"level=1 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T12:29:56Z"}
+{"detail":"session created","event":"join","student":"20251700870","token":"3f028c8f-9a1a-4c5c-8bb0-5195e1ce4067","ts":"2026-08-26T12:30:03Z"}
+{"detail":"level=2 passed=false","event":"go_attempt","student":"20241700460","token":"cf48aca6-b7fa-419e-9248-64a5b19ff64c","ts":"2026-08-26T12:30:11Z"}
+{"detail":"","event":"connect","student":"20251700870","token":"3f028c8f-9a1a-4c5c-8bb0-5195e1ce4067","ts":"2026-08-26T12:30:16Z"}
+{"detail":"level=6 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:31:55Z"}
+{"detail":"level=7 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:34:12Z"}
+{"detail":"level=8 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:37:58Z"}
+{"detail":"level=9 passed=true","event":"go_attempt","student":"20251700883","token":"a71a8424-298d-46f3-9642-13e316878220","ts":"2026-08-26T12:39:29Z"}

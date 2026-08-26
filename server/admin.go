@@ -24,6 +24,7 @@ type sessionInfo struct {
 	Name    string `json:"name"`
 	State   string `json:"state"`
 	Created int64  `json:"created"`
+	IP      string `json:"ip,omitempty"`
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +42,7 @@ func (s *Server) handleAdminState(w http.ResponseWriter, r *http.Request) {
 			Name:    ses.StudentID,
 			State:   st,
 			Created: ses.CreatedAt.UnixMilli(),
+			IP:      ses.IP,
 		})
 	})
 

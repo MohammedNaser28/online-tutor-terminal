@@ -11,8 +11,8 @@ func TestAdminState_ReturnsState(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	s.manager.NewSession("student1")
-	s.manager.NewSession("student2")
+	s.manager.NewSession("student1", "")
+	s.manager.NewSession("student2", "")
 
 	req := httptest.NewRequest("GET", "/admin/state", nil)
 	req.Header.Set("X-Admin-Token", "admin-secret-123")
@@ -43,7 +43,7 @@ func TestAdminKill_KillsSession(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	session, _ := s.manager.NewSession("target")
+	session, _ := s.manager.NewSession("target", "")
 	token := session.Token
 
 	req := httptest.NewRequest("POST", "/admin/kill?token="+token, nil)

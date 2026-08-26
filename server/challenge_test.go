@@ -730,7 +730,7 @@ func setupPollTest(t *testing.T, levels []ChallengeLevel) (*Server, *Session, st
 	}
 	srv := NewServer(cfg)
 
-	session, err := srv.manager.NewSession("test-student")
+	session, err := srv.manager.NewSession("test-student", "")
 	if err != nil {
 		cleanup()
 		t.Fatalf("NewSession: %v", err)
@@ -993,7 +993,7 @@ func TestPollChallengeRequests_InitScript(t *testing.T) {
 	}
 	srv := NewServer(cfg)
 
-	session, err := srv.manager.NewSession("test-student")
+	session, err := srv.manager.NewSession("test-student", "")
 	if err != nil {
 		t.Fatalf("NewSession: %v", err)
 	}

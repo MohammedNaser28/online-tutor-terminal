@@ -54,8 +54,8 @@ func TestShutdown_ExistingSessionsPersist(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	s.manager.NewSession("student1")
-	s.manager.NewSession("student2")
+	s.manager.NewSession("student1", "")
+	s.manager.NewSession("student2", "")
 
 	if c := s.manager.CountActive(); c != 2 {
 		t.Fatalf("expected 2 active sessions, got %d", c)
@@ -72,8 +72,8 @@ func TestShutdown_CleanupAllSessions(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	s1, _ := s.manager.NewSession("student1")
-	s2, _ := s.manager.NewSession("student2")
+	s1, _ := s.manager.NewSession("student1", "")
+	s2, _ := s.manager.NewSession("student2", "")
 	s.manager.SetSessionState(s1.Token, SessionActive)
 	s.manager.SetSessionState(s2.Token, SessionActive)
 

@@ -9,18 +9,18 @@ else
     success=false
 fi
 
-if grep -q '^penggroup:' /etc/group; then
-    echo "[PASS] Group 'penggroup' exists."
+if grep -q '^pengroup:' /etc/group; then
+    echo "[PASS] Group 'pengroup' exists."
 else
-    echo "[FAIL] Group 'penggroup' does not exist."
+    echo "[FAIL] Group 'pengroup' does not exist."
     success=false
 fi
 
-if id -gn penguin 2>/dev/null | grep -q '^penggroup$'; then
-    echo "[PASS] Primary group for 'penguin' is correctly set to 'penggroup'."
+if id -gn penguin 2>/dev/null | grep -q '^pengroup$'; then
+    echo "[PASS] Primary group for 'penguin' is correctly set to 'pengroup'."
 else
     current_group=$(id -gn penguin 2>/dev/null)
-    echo "[FAIL] Primary group is '$current_group', expected 'penggroup'."
+    echo "[FAIL] Primary group is '$current_group', expected 'pengroup'."
     success=false
 fi
 

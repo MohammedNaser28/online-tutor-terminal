@@ -38,6 +38,7 @@ func (s SessionState) String() string {
 type Session struct {
 	Token      string
 	StudentID  string
+	IP         string
 	Title      string
 	Difficulty string
 	RootfsPath string
@@ -53,10 +54,11 @@ type Session struct {
 	Challenge *ChallengeState
 }
 
-func NewSession(studentID string) *Session {
+func NewSession(studentID, ip string) *Session {
 	s := &Session{
 		Token:     uuid.NewString(),
 		StudentID: studentID,
+		IP:        ip,
 		CreatedAt: time.Now(),
 	}
 	s.state.Store(int64(SessionPending))
@@ -130,7 +132,7 @@ func NewSessionManager(capacity int) *SessionManager {
 	}
 }
 
-func (m *SessionManager) NewSession(studentID string) (*Session, error) {
+func (m *SessionManager) NewSession(studentID, ip string) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -144,7 +146,7 @@ func (m *SessionManager) NewSession(studentID string) (*Session, error) {
 		return nil, fmt.Errorf("concurrency cap reached (%d/%d)", m.capacity, m.capacity)
 	}
 
-	s := NewSession(studentID)
+	s := NewSession(studentID, ip)
 	m.sessions[s.Token] = s
 	m.byStudentID[studentID] = s.Token
 	return s, nil

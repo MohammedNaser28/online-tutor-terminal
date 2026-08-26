@@ -6,7 +6,7 @@ import (
 
 func TestGracePeriod_OrphanTransition(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 
 	if err := m.SetSessionState(s.Token, SessionOrphaned); err != nil {
@@ -19,7 +19,7 @@ func TestGracePeriod_OrphanTransition(t *testing.T) {
 
 func TestGracePeriod_ReconnectWithinWindow(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 
 	m.SetSessionState(s.Token, SessionOrphaned)
@@ -32,7 +32,7 @@ func TestGracePeriod_ReconnectWithinWindow(t *testing.T) {
 
 func TestGracePeriod_CloseOrphanedSession(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 	m.SetSessionState(s.Token, SessionOrphaned)
 
@@ -51,7 +51,7 @@ func TestGracePeriod_CloseOrphanedSession(t *testing.T) {
 func TestGracePeriod_FullFlow(t *testing.T) {
 	m := NewSessionManager(5)
 
-	s, err := m.NewSession("student1")
+	s, err := m.NewSession("student1", "")
 	if err != nil {
 		t.Fatalf("new session: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestGracePeriod_FullFlow(t *testing.T) {
 
 func TestGracePeriod_MultipleDisconnects(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 
 	for i := 0; i < 5; i++ {
@@ -102,7 +102,7 @@ func TestGracePeriod_MultipleDisconnects(t *testing.T) {
 
 func TestGracePeriod_ReconnectAfterCleanup(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 	m.SetSessionState(s.Token, SessionClosed)
 	s.Close()
@@ -112,7 +112,7 @@ func TestGracePeriod_ReconnectAfterCleanup(t *testing.T) {
 		t.Errorf("expected 0 active, got %d", m.CountActive())
 	}
 
-	newS, err := m.NewSession("42")
+	newS, err := m.NewSession("42", "")
 	if err != nil {
 		t.Fatalf("should allow new session after old is closed: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestGracePeriod_ReconnectAfterCleanup(t *testing.T) {
 
 func TestGracePeriod_SameStudentReconnects(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 	m.SetSessionState(s.Token, SessionActive)
 
 	existingToken, ok := m.LookupByStudentID("42")
@@ -134,7 +134,7 @@ func TestGracePeriod_SameStudentReconnects(t *testing.T) {
 		t.Fatal("expected same token")
 	}
 
-	second, err := m.NewSession("42")
+	second, err := m.NewSession("42", "")
 	if err == nil {
 		t.Fatalf("expected error for duplicate, got session %s", second.Token)
 	}

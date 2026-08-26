@@ -31,7 +31,7 @@ func TestCleanupSession_RemovesRootfs(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	session, _ := s.manager.NewSession("test-student")
+	session, _ := s.manager.NewSession("test-student", "")
 	rootfs, err := os.MkdirTemp("", "qo-test-cleanup-*")
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestCleanupSession_NoRootfs(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	session, _ := s.manager.NewSession("test-student")
+	session, _ := s.manager.NewSession("test-student", "")
 	// RootfsPath is empty — should not crash.
 
 	s.cleanupSession(session.Token)
@@ -76,7 +76,7 @@ func TestWsNotify_NoTerm(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	session, _ := s.manager.NewSession("test-student")
+	session, _ := s.manager.NewSession("test-student", "")
 
 	// Should not panic when Term is nil.
 	wsNotify(session, wsMessage{Type: "shutdown", Message: "bye"})
@@ -130,7 +130,7 @@ func setupChallengeAPI(t *testing.T, levels []ChallengeLevel) (*Server, string, 
 	t.Helper()
 	s, cleanup := setupJoinTest(t)
 
-	session, err := s.manager.NewSession("challenge-user")
+	session, err := s.manager.NewSession("challenge-user", "")
 	if err != nil {
 		cleanup()
 		t.Fatalf("NewSession: %v", err)
@@ -329,7 +329,7 @@ func TestChallengeAPI_NoChallenge(t *testing.T) {
 	s, cleanup := setupJoinTest(t)
 	defer cleanup()
 
-	session, _ := s.manager.NewSession("no-challenge-user")
+	session, _ := s.manager.NewSession("no-challenge-user", "")
 	token := session.Token
 
 	endpoints := []struct {

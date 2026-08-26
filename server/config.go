@@ -105,7 +105,7 @@ func LoadConfig() (*Config, error) {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "data"
+		dataDir = "/var/lib/qo-learn-tool"
 	}
 
 	return &Config{

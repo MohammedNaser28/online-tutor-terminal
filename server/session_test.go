@@ -7,7 +7,7 @@ import (
 
 func TestManager_NewSession(t *testing.T) {
 	m := NewSessionManager(5)
-	s, err := m.NewSession("42")
+	s, err := m.NewSession("42", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,12 +31,12 @@ func TestManager_NewSession(t *testing.T) {
 
 func TestManager_DuplicateStudentID(t *testing.T) {
 	m := NewSessionManager(5)
-	_, err := m.NewSession("42")
+	_, err := m.NewSession("42", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = m.NewSession("42")
+	_, err = m.NewSession("42", "")
 	if err == nil {
 		t.Fatal("expected error for duplicate student id")
 	}
@@ -44,16 +44,16 @@ func TestManager_DuplicateStudentID(t *testing.T) {
 
 func TestManager_CapacityReached(t *testing.T) {
 	m := NewSessionManager(2)
-	_, err := m.NewSession("1")
+	_, err := m.NewSession("1", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	_, err = m.NewSession("2")
+	_, err = m.NewSession("2", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = m.NewSession("3")
+	_, err = m.NewSession("3", "")
 	if err == nil {
 		t.Fatal("expected error when capacity is full")
 	}
@@ -61,7 +61,7 @@ func TestManager_CapacityReached(t *testing.T) {
 
 func TestManager_GetSession(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 
 	got, ok := m.GetSession(s.Token)
 	if !ok {
@@ -79,7 +79,7 @@ func TestManager_GetSession(t *testing.T) {
 
 func TestManager_RemoveSession(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 
 	m.RemoveSession(s.Token)
 
@@ -95,7 +95,7 @@ func TestManager_RemoveSession(t *testing.T) {
 
 func TestManager_SetState_Transitions(t *testing.T) {
 	m := NewSessionManager(5)
-	s, _ := m.NewSession("42")
+	s, _ := m.NewSession("42", "")
 
 	if err := m.SetSessionState(s.Token, SessionActive); err != nil {
 		t.Fatalf("expected active transition ok: %v", err)
@@ -133,9 +133,9 @@ func TestManager_SetState_Transitions(t *testing.T) {
 
 func TestManager_CountActive(t *testing.T) {
 	m := NewSessionManager(5)
-	m.NewSession("1")
-	m.NewSession("2")
-	m.NewSession("3")
+	m.NewSession("1", "")
+	m.NewSession("2", "")
+	m.NewSession("3", "")
 
 	if c := m.CountActive(); c != 3 {
 		t.Errorf("expected 3 active, got %d", c)
@@ -158,7 +158,7 @@ func TestManager_ConcurrentSessions(t *testing.T) {
 	for i := 0; i < n; i++ {
 		i := i
 		go func() {
-			s, err := m.NewSession(fmt.Sprintf("%d", i))
+			s, err := m.NewSession(fmt.Sprintf("%d", i), "")
 			if err == nil {
 				m.SetSessionState(s.Token, SessionActive)
 			}

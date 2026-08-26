@@ -197,6 +197,7 @@ tr:last-child td { border-bottom: none; }
           <thead>
             <tr>
               <th>Student</th>
+              <th>IP</th>
               <th>Token</th>
               <th>State</th>
               <th>Uptime</th>
@@ -293,6 +294,7 @@ tr:last-child td { border-bottom: none; }
       const state = s.state || 'unknown';
       return '<tr>' +
         '<td><strong>' + s.name + '</strong></td>' +
+        '<td><span class="token-mono">' + (s.ip || '—') + '</span></td>' +
         '<td><span class="token-mono" title="' + s.token + '">' + s.token.slice(0, 8) + '...</span></td>' +
         '<td><span class="state-badge state-' + state + '"><span class="dot dot-' + state + '"></span>' + state + '</span></td>' +
         '<td>' + formatTime(Date.now() - s.created) + '</td>' +

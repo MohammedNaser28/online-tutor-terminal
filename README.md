@@ -93,7 +93,7 @@ Students open `http://<host>:8080`, enter the event code and their name, and get
 | `IDLE_TIMEOUT` | `600` | Seconds of inactivity before a session is closed (warns 60s prior) |
 | `GRACE_PERIOD` | `45` | Seconds a disconnected session stays recoverable |
 | `PORT` | `8080` | Listen port |
-| `DATA_DIR` | `data` | User logs: events.log + per-session terminal transcripts |
+| `DATA_DIR` | `/var/lib/qo-learn-tool` | User logs: events.log + per-session terminal transcripts |
 
 Remote access: point [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) at the port.
 

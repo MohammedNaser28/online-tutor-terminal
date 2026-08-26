@@ -39,9 +39,9 @@ func TestLeaderboardData_WithScores(t *testing.T) {
 	s.config.MaxConcurrent = 3
 	s.manager = NewSessionManager(3)
 
-	s1, _ := s.manager.NewSession("alice")
-	s2, _ := s.manager.NewSession("bob")
-	s3, _ := s.manager.NewSession("carol")
+	s1, _ := s.manager.NewSession("alice", "")
+	s2, _ := s.manager.NewSession("bob", "")
+	s3, _ := s.manager.NewSession("carol", "")
 
 	s1.SetScore(5)
 	s2.SetScore(3)
