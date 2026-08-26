@@ -1,18 +1,17 @@
 #!/bin/bash
-# Anchor on the script's own directory so 'go' works from anywhere.
-BASE="$(cd "$(dirname "$0")" && pwd)"
+# Runs server-side with cwd = this level's directory.
 
-if [ -f "$BASE/link_lab/original.txt" ]; then
+if [ -f "link_lab/original.txt" ]; then
     echo "[FAIL]: 'original.txt' still exists. Did you complete Step 5?"
     exit 1
 fi
 
-if [ ! -f "$BASE/link_lab/hard_link.txt" ]; then
-    echo "[FAIL]: 'hard_link.txt' is missing (expected in ~/challenges/level2/link_lab)."
+if [ ! -f "link_lab/hard_link.txt" ]; then
+    echo "[FAIL]: 'hard_link.txt' is missing (expected in link_lab/)."
     exit 1
 fi
 
-CONTENT=$(cat "$BASE/link_lab/hard_link.txt" 2>/dev/null)
+CONTENT=$(cat "link_lab/hard_link.txt" 2>/dev/null)
 if [[ "$CONTENT" == *"Linux is awesome"* ]] && [[ "$CONTENT" == *"Learning links"* ]]; then
     echo "[PASS]: SUCCESS (Data intact)"
 else
@@ -20,12 +19,12 @@ else
     exit 1
 fi
 
-if [ ! -L "$BASE/link_lab/soft_link.txt" ]; then
+if [ ! -L "link_lab/soft_link.txt" ]; then
     echo "[FAIL]: 'soft_link.txt' is missing or is not a symbolic link."
     exit 1
 fi
 
-if [ ! -e "$BASE/link_lab/soft_link.txt" ]; then
+if [ ! -e "link_lab/soft_link.txt" ]; then
     echo "[PASS]: SUCCESS (Link is correctly broken/dangling)"
     exit 0
 else

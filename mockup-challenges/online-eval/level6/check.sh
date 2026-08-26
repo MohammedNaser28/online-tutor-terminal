@@ -1,7 +1,5 @@
 #!/bin/bash
-
-BASE="$(cd "$(dirname "$0")" && pwd)"
-cd "$BASE" || exit 1
+# Runs server-side with cwd = this level's directory.
 
 if [ -z "$1" ]; then
     echo "[FAIL] No file provided. You must pass the file with the most punctuation as an argument."

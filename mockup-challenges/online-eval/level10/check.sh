@@ -1,7 +1,6 @@
 #!/bin/bash
 
-BASE="$(cd "$(dirname "$0")" && pwd)"
-TARGET_SCRIPT="$BASE/sleeper.sh"
+TARGET_SCRIPT="sleeper.sh"
 
 if [ -f "$TARGET_SCRIPT" ]; then
     echo "[PASS] '$TARGET_SCRIPT' exists."

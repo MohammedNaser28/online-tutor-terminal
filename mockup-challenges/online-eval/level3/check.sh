@@ -1,13 +1,14 @@
 #!/bin/bash
+# Runs server-side with cwd = this level's directory.
 
 USER_ANSWER="$1"
-LOG_FILE="$(cd "$(dirname "$0")" && pwd)/log"
+LOG_FILE="log"
 SUCCESS=true
 
 if grep -qi "not found" "$LOG_FILE" 2>/dev/null; then
-    echo "[PASS] '$LOG_FILE' contains the correct 'not found' error message."
+    echo "[PASS] 'log' contains the correct 'not found' error message."
 else
-    echo "[FAIL] 'log' does not contain the expected error. Did you run 'path' inside the level directory?"
+    echo "[FAIL] 'log' does not contain the expected error. Did you run 'path'?"
     SUCCESS=false
 fi
 
