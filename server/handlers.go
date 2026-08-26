@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/subtle"
 	"encoding/json"
 	"io/fs"
@@ -17,28 +18,28 @@ import (
 )
 
 type Server struct {
-	config       *Config
-	manager      *SessionManager
-	limiter      *RateLimiter
-	adminLimiter *RateLimiter
-	shutdown     bool
-	startTime    time.Time
-	queue        []queueEntry
-	queueMu      sync.Mutex
-	metaTitle    string
+	config         *Config
+	manager        *SessionManager
+	limiter        *RateLimiter
+	adminLimiter   *RateLimiter
+	shutdown       bool
+	startTime      time.Time
+	queue          []queueEntry
+	queueMu        sync.Mutex
+	metaTitle      string
 	metaDifficulty string
-	metaMu       sync.Mutex
-	metaCache    map[string]*ChallengeMetadata
+	metaMu         sync.Mutex
+	metaCache      map[string]*ChallengeMetadata
 }
 
 func NewServer(cfg *Config) *Server {
 	s := &Server{
-		config:       cfg,
-		manager:      NewSessionManager(cfg.MaxConcurrent),
-		limiter:      NewRateLimiter(5, cfg.GracePeriod),
-		adminLimiter: NewRateLimiter(5, 1*time.Minute),
-		startTime:    time.Now(),
-		metaTitle:    "Untitled",
+		config:         cfg,
+		manager:        NewSessionManager(cfg.MaxConcurrent),
+		limiter:        NewRateLimiter(5, cfg.GracePeriod),
+		adminLimiter:   NewRateLimiter(5, 1*time.Minute),
+		startTime:      time.Now(),
+		metaTitle:      "Untitled",
 		metaDifficulty: "unknown",
 	}
 	s.loadChallengeMeta()
@@ -52,7 +53,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))).ServeHTTP(w, r)
+		gzipIfAccepted(w, r, func(w http.ResponseWriter, r *http.Request) {
+			http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))).ServeHTTP(w, r)
+		})
 		return
 	}
 
@@ -63,11 +66,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Serve the login page HTML without auth (login form sends token via JS)
 			s.handleAdmin(w, r)
 		case "GET /admin/state":
-			if s.adminAuth(w, r) { s.handleAdminState(w, r) }
+			if s.adminAuth(w, r) {
+				s.handleAdminState(w, r)
+			}
 		case "POST /admin/kill":
-			if s.adminAuth(w, r) { s.handleAdminKill(w, r) }
+			if s.adminAuth(w, r) {
+				s.handleAdminKill(w, r)
+			}
 		case "POST /admin/shutdown":
-			if s.adminAuth(w, r) { s.handleAdminShutdown(w, r) }
+			if s.adminAuth(w, r) {
+				s.handleAdminShutdown(w, r)
+			}
 		case "GET /admin/leaderboard":
 			s.handleLeaderboardPage(w, r)
 		default:
@@ -76,7 +85,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
- 	switch r.Method + " " + r.URL.Path {
+	switch r.Method + " " + r.URL.Path {
 	case "GET /":
 		s.handleLogin(w, r)
 	case "POST /join":
@@ -513,4 +522,35 @@ func (s *Server) initChallengeForSession(session *Session) {
 			log.Printf("warning: failed to discover levels for session %s: %v", session.Token, err)
 		}
 	}
+}
+
+// gzipIfAccepted compresses text-like responses on the fly when the client
+// advertises gzip — the vendored xterm.js alone is ~280KB uncompressed, which
+// is painful over remote tunnels.
+func gzipIfAccepted(w http.ResponseWriter, r *http.Request, next func(http.ResponseWriter, *http.Request)) {
+	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		next(w, r)
+		return
+	}
+	path := r.URL.Path
+	if !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".css") &&
+		!strings.HasSuffix(path, ".html") && path != "/" {
+		next(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Encoding", "gzip")
+	w.Header().Del("Content-Length")
+	gz := gzip.NewWriter(w)
+	defer gz.Close()
+	next(&gzipResponseWriter{ResponseWriter: w, gz: gz}, r)
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	gz *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(b []byte) (int, error) {
+	return g.gz.Write(b)
 }

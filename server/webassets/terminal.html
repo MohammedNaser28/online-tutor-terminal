@@ -750,9 +750,19 @@ function connect() {
       firstConnect = false;
     }
   }, 10000);
+  // If the handshake takes a while (remote tunnel + sandbox spawn), tell the
+  // student what's happening instead of a frozen "Connecting...".
+  var slowTimer = setTimeout(function () {
+    var t = document.querySelector('#loading-overlay .loading-text');
+    if (t && !document.getElementById('loading-overlay').classList.contains('hidden')) {
+      t.textContent = 'Preparing your sandbox — this can take a few seconds…';
+    }
+  }, 2500);
+  (function () { var _ot = openTimer; })();
 
   ws.onopen = function () {
     clearTimeout(openTimer);
+    clearTimeout(slowTimer);
     hideBanner();
     retryDelay = 500;
     if (reconnectTimer) {

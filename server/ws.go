@@ -168,9 +168,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	session.RootfsPath = sessionRootfs
 	session.mu.Unlock()
 
-	// check.sh stays inside the sandbox: `go` executes it locally and
-	// reports completion via the "solved" IPC action (see challenge.go).
-	// Validators-only levels fall back to the server-side "go" IPC action.
+	spawnStart := time.Now()
+	milestone := func(name string) {
+		log.Printf("session %s: %-12s (+%v)", token, name, time.Since(spawnStart))
+	}
 
 	cmd := exec.Command(s.config.QoBinaryPath, "start",
 		"-i", session.StudentID,
@@ -221,6 +222,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to start session", http.StatusInternalServerError)
 		return
 	}
+	milestone("spawned")
 
 	session.mu.Lock()
 	session.Cmd = cmd
@@ -276,6 +278,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
+	if err == nil {
+		milestone("ws-open")
+	}
 	if err != nil {
 		log.Printf("ws upgrade (new %s): %v", token, err)
 		s.cleanupSession(token)
