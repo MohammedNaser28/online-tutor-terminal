@@ -16,10 +16,17 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLeaderboardData(w http.ResponseWriter, r *http.Request) {
-	// Historical leaderboard: all students who ever solved, persisted across
-	// restarts. Sorted Solved DESC, LastSolvedAt ASC (earlier achiever wins ties).
+	// Leaderboard for the current event run only (since server start).
+	// Historical data stays in leaderboard.json / events.log for audit
+	// but is not shown by default. Use ?all=1 to see all-time.
 	if s.leaderboardStore != nil {
-		stored := s.leaderboardStore.GetAll()
+		all := r.URL.Query().Get("all") == "1" || r.URL.Query().Get("all") == "true"
+		var stored []LeaderboardEntry
+		if all {
+			stored = s.leaderboardStore.GetAll()
+		} else {
+			stored = s.leaderboardStore.GetAllSince(s.startTime.UnixMilli())
+		}
 		entries := make([]leaderboardEntry, 0, len(stored))
 		for _, e := range stored {
 			if e.StudentID == "" {

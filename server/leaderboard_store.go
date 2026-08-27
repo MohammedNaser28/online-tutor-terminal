@@ -205,10 +205,17 @@ func (ls *LeaderboardStore) Get(studentID string) (*LeaderboardEntry, bool) {
 }
 
 func (ls *LeaderboardStore) GetAll() []LeaderboardEntry {
+	return ls.GetAllSince(0)
+}
+
+func (ls *LeaderboardStore) GetAllSince(since int64) []LeaderboardEntry {
 	ls.mu.RLock()
 	defer ls.mu.RUnlock()
 	out := make([]LeaderboardEntry, 0, len(ls.m))
 	for _, v := range ls.m {
+		if since != 0 && v.LastSeenAt < since && v.LastSolvedAt < since {
+			continue
+		}
 		out = append(out, *v)
 	}
 	sort.Slice(out, func(i, j int) bool {
