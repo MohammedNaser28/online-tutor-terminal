@@ -145,6 +145,13 @@ tr:last-child td { border-bottom: none; }
   </div>
 
   <div class="container">
+    <div class="section" style="padding: 16px 20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <div style="font-weight:600; font-size:14px; white-space:nowrap;">🔍 Student Lookup</div>
+      <input id="student-lookup-input" placeholder="Enter student ID..." style="flex:1; min-width:180px; background:var(--bg-tertiary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:8px 12px; font-size:13px;" />
+      <button class="btn btn-secondary" onclick="lookupStudent()">Lookup</button>
+      <button class="btn btn-secondary" onclick="clearLookup()" style="display:none;" id="clear-lookup-btn">Clear</button>
+    </div>
+    <div class="section" id="student-lookup-result" style="display:none;"></div>
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
@@ -550,6 +557,73 @@ tr:last-child td { border-bottom: none; }
       }
     }, 1000);
   }
+
+  // Student lookup: search any ID including closed/historical
+  async function lookupStudent() {
+    const input = document.getElementById('student-lookup-input');
+    const id = input.value.trim();
+    if (!id) return;
+    const resultEl = document.getElementById('student-lookup-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div style="padding:20px; color:var(--text-secondary);">Loading...</div>';
+    document.getElementById('clear-lookup-btn').style.display = '';
+    try {
+      const res = await fetch('/admin/student/' + encodeURIComponent(id), {
+        headers: { 'X-Admin-Token': adminToken }
+      });
+      if (res.status === 401 || res.status === 429) { showLoginError('Invalid admin secret'); return; }
+      if (!res.ok) { resultEl.innerHTML = '<div style="padding:20px; color:var(--accent-red);">Lookup failed</div>'; return; }
+      const data = await res.json();
+      if (!data.found) {
+        resultEl.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary);"><div style="font-size:24px; margin-bottom:8px;">🔍</div>No records for <strong>' + id + '</strong> — never entered (check typo: e.g. 202 vs 20241700599)</div>';
+        return;
+      }
+      let html = '<div style="padding:16px 20px; border-bottom:1px solid var(--border-color); display:flex; gap:16px; flex-wrap:wrap; align-items:center;">';
+      if (data.live) {
+        html += '<span class="state-badge state-' + data.live.state + '"><span class="dot dot-' + data.live.state + '"></span>' + data.live.state + '</span>';
+        html += '<span><strong>' + data.live.name + '</strong> <span class="token-mono">' + (data.live.ip || '—') + '</span></span>';
+        html += '<span class="token-mono" title="' + data.live.token + '">' + data.live.token.slice(0,8) + '...</span>';
+        html += '<span>Uptime ' + formatTime(Date.now() - data.live.created) + '</span>';
+      } else {
+        html += '<span class="state-badge state-closed"><span class="dot dot-closed"></span>offline</span>';
+        html += '<span><strong>' + id + '</strong></span>';
+      }
+      if (data.leaderboard) {
+        const lb = data.leaderboard;
+        html += '<span style="margin-left:auto; background:var(--bg-tertiary); padding:4px 10px; border-radius:6px;">Solved: <strong>' + lb.solved + '</strong>';
+        if (lb.last_solved_at) html += ' <span style="color:var(--text-secondary); font-size:11px;">last ' + new Date(lb.last_solved_at).toLocaleTimeString() + '</span>';
+        html += '</span>';
+        if (lb.last_ip) html += '<span class="token-mono">' + lb.last_ip + '</span>';
+      } else {
+        html += '<span style="margin-left:auto; color:var(--text-secondary);">No solves yet</span>';
+      }
+      html += '</div>';
+      if (data.activity && data.activity.length > 0) {
+        html += '<div class="table-container"><table><thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead><tbody>';
+        html += data.activity.map(e => {
+          const t = e.ts ? new Date(e.ts).toLocaleTimeString() : '—';
+          const evClass = e.event.includes('join') ? 'state-pending' : e.event.includes('logout') || e.event.includes('disconnect') ? 'state-closed' : e.event === 'go_attempt' ? 'state-active' : 'state-orphaned';
+          let detail = e.detail || '—';
+          // Highlight IP in detail
+          return '<tr><td><span class="token-mono">' + t + '</span></td><td><span class="state-badge ' + evClass + '">' + e.event + '</span></td><td><span class="token-mono" style="max-width:360px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block;" title="' + detail.replace(/"/g, '&quot;') + '">' + detail + '</span></td></tr>';
+        }).join('');
+        html += '</tbody></table></div>';
+      } else {
+        html += '<div style="padding:16px; color:var(--text-secondary); text-align:center;">No activity history</div>';
+      }
+      resultEl.innerHTML = html;
+    } catch (e) {
+      resultEl.innerHTML = '<div style="padding:20px; color:var(--accent-red);">Error: ' + e.message + '</div>';
+    }
+  }
+  function clearLookup() {
+    document.getElementById('student-lookup-input').value = '';
+    const el = document.getElementById('student-lookup-result');
+    el.style.display = 'none';
+    el.innerHTML = '';
+    document.getElementById('clear-lookup-btn').style.display = 'none';
+  }
+  document.getElementById('student-lookup-input')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupStudent(); } });
 
   // Activity filters: refetch on change
   document.getElementById('activity-filter-student')?.addEventListener('input', () => {
