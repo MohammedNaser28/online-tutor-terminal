@@ -280,7 +280,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err == nil {
 		milestone("ws-open")
-		LogEvent(session.StudentID, token, "connect", "")
+		LogEvent(session.StudentID, token, "connect", "ip="+session.IP)
+		if s.leaderboardStore != nil {
+			s.leaderboardStore.Touch(session.StudentID, session.IP)
+		}
 	}
 	if err != nil {
 		log.Printf("ws upgrade (new %s): %v", token, err)
@@ -423,6 +426,10 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 				continue
 			}
 			log.Printf("session %s idle for %v, closing", token, idle)
+			LogEvent(session.StudentID, token, "logout", fmt.Sprintf("ip=%s reason=idle_timeout", session.IP))
+			if srv.leaderboardStore != nil {
+				srv.leaderboardStore.Touch(session.StudentID, session.IP)
+			}
 			wsNotify(session, wsMessage{Type: "shutdown", Message: "Session closed due to inactivity"})
 			time.Sleep(3 * time.Second)
 			conn.Close()
@@ -453,7 +460,11 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 	if session.State() == SessionActive {
 		log.Printf("session %s disconnected, entering orphaned state", token)
 		session.SetState(SessionOrphaned)
-		LogEvent(session.StudentID, token, "disconnect", "orphaned")
+		LogEvent(session.StudentID, token, "logout", fmt.Sprintf("ip=%s reason=tab_closed", session.IP))
+		LogEvent(session.StudentID, token, "disconnect", fmt.Sprintf("ip=%s orphaned", session.IP))
+		if srv.leaderboardStore != nil {
+			srv.leaderboardStore.Touch(session.StudentID, session.IP)
+		}
 	}
 	session.mu.Unlock()
 
@@ -462,7 +473,13 @@ func pipeTermToWS(srv *Server, conn *websocket.Conn, term *os.File, session *Ses
 		session.mu.Lock()
 		if session.State() == SessionOrphaned {
 			log.Printf("session %s grace period expired, closing", token)
+			LogEvent(session.StudentID, token, "logout", fmt.Sprintf("ip=%s reason=orphaned_timeout", session.IP))
+			if srv.leaderboardStore != nil {
+				srv.leaderboardStore.Touch(session.StudentID, session.IP)
+			}
+			session.mu.Unlock()
 			srv.cleanupSession(token)
+			return
 		}
 		session.mu.Unlock()
 	}()

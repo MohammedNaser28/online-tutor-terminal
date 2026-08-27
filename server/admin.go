@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -82,10 +83,15 @@ func (s *Server) handleAdminKill(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := session.StudentID
+	ip := session.IP
 	session.Close()
 	s.manager.RemoveSession(token)
 	log.Printf("admin killed session %s (%s)", token, name)
-	LogEvent(name, token, "admin_kill", "")
+	LogEvent(name, token, "admin_kill", fmt.Sprintf("ip=%s", ip))
+	LogEvent(name, token, "logout", fmt.Sprintf("ip=%s reason=admin_kill", ip))
+	if s.leaderboardStore != nil {
+		s.leaderboardStore.Touch(name, ip)
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "killed"})
 }

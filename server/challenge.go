@@ -769,12 +769,15 @@ func (s *Server) pollChallengeRequests(session *Session) {
 					}
 
 					LogEvent(session.StudentID, session.Token, "go_attempt",
-						fmt.Sprintf("level=%d passed=%v", level.ID, passed))
+						fmt.Sprintf("ip=%s level=%d passed=%v", session.IP, level.ID, passed))
 					if err != nil {
 						outSb.WriteString(fmt.Sprintf("\033[31m❌ Check error: %s\033[0m", err.Error()))
 					} else if passed {
 						session.Challenge.MarkCompleted(level.ID)
 						session.IncrementScore()
+						if s.leaderboardStore != nil {
+							s.leaderboardStore.Inc(session.StudentID, session.IP)
+						}
 						if session.Challenge.Completed {
 							outSb.WriteString("\033[32m🎉 Correct! You've completed all levels!\033[0m")
 						} else if session.Challenge.Advance() {
@@ -815,6 +818,9 @@ func (s *Server) pollChallengeRequests(session *Session) {
 					}
 					session.Challenge.MarkCompleted(lvl.ID)
 					session.IncrementScore()
+					if s.leaderboardStore != nil {
+						s.leaderboardStore.Inc(session.StudentID, session.IP)
+					}
 					if !session.Challenge.Completed {
 						session.Challenge.Advance()
 					}

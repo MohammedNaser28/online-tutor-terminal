@@ -18,6 +18,7 @@ func setupJoinTest(t *testing.T) (*Server, func()) {
 		QoBinaryPath:  qoBin,
 		ArchivePath:   archive,
 		Password:      "test-pass",
+		DataDir:       t.TempDir(),
 		Key:           "test-key",
 		MaxConcurrent: 2,
 		QoDuration:    "90m",

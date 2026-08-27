@@ -19,29 +19,31 @@ import (
 )
 
 type Server struct {
-	config         *Config
-	manager        *SessionManager
-	limiter        *RateLimiter
-	adminLimiter   *RateLimiter
-	shutdown       bool
-	startTime      time.Time
-	queue          []queueEntry
-	queueMu        sync.Mutex
-	metaTitle      string
-	metaDifficulty string
-	metaMu         sync.Mutex
-	metaCache      map[string]*ChallengeMetadata
+	config           *Config
+	manager          *SessionManager
+	limiter          *RateLimiter
+	adminLimiter     *RateLimiter
+	shutdown         bool
+	startTime        time.Time
+	queue            []queueEntry
+	queueMu          sync.Mutex
+	metaTitle        string
+	metaDifficulty   string
+	metaMu           sync.Mutex
+	metaCache        map[string]*ChallengeMetadata
+	leaderboardStore *LeaderboardStore
 }
 
 func NewServer(cfg *Config) *Server {
 	s := &Server{
-		config:         cfg,
-		manager:        NewSessionManager(cfg.MaxConcurrent),
-		limiter:        NewRateLimiter(5, cfg.GracePeriod),
-		adminLimiter:   NewRateLimiter(5, 1*time.Minute),
-		startTime:      time.Now(),
-		metaTitle:      "Untitled",
-		metaDifficulty: "unknown",
+		config:           cfg,
+		manager:          NewSessionManager(cfg.MaxConcurrent),
+		limiter:          NewRateLimiter(5, cfg.GracePeriod),
+		adminLimiter:     NewRateLimiter(5, 1*time.Minute),
+		startTime:        time.Now(),
+		metaTitle:        "Untitled",
+		metaDifficulty:   "unknown",
+		leaderboardStore: NewLeaderboardStore(cfg.DataDir),
 	}
 	s.loadChallengeMeta()
 	return s
@@ -77,6 +79,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "POST /admin/shutdown":
 			if s.adminAuth(w, r) {
 				s.handleAdminShutdown(w, r)
+			}
+		case "GET /admin/activity":
+			if s.adminAuth(w, r) {
+				s.handleAdminActivity(w, r)
 			}
 		case "GET /admin/leaderboard":
 			s.handleLeaderboardPage(w, r)
@@ -274,6 +280,13 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	session.Difficulty = s.metaDifficulty
 
 	s.removeFromQueue(studentID)
+	// Restore historical score so re-login after logout/restart keeps progress
+	if s.leaderboardStore != nil {
+		if entry, ok := s.leaderboardStore.Get(studentID); ok && entry.Solved > 0 {
+			session.SetScore(entry.Solved)
+		}
+		s.leaderboardStore.Touch(studentID, ip)
+	}
 	LogEvent(studentID, session.Token, "join", "ip="+ip)
 
 	writeJSON(w, http.StatusOK, joinResponse{
@@ -302,6 +315,10 @@ func (s *Server) handleSolved(w http.ResponseWriter, r *http.Request) {
 	}
 
 	n := session.IncrementScore()
+	if s.leaderboardStore != nil {
+		s.leaderboardStore.Inc(session.StudentID, session.IP)
+	}
+	LogEvent(session.StudentID, token, "go_attempt", "level=api_solved passed=true")
 	log.Printf("session %s solved challenge, score now %d", token, n)
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "score": n})
 }

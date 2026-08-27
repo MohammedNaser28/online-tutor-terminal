@@ -727,6 +727,7 @@ func setupPollTest(t *testing.T, levels []ChallengeLevel) (*Server, *Session, st
 		Password:      "pass",
 		Key:           "key",
 		MaxConcurrent: 10,
+		DataDir:       t.TempDir(),
 	}
 	srv := NewServer(cfg)
 
@@ -990,6 +991,7 @@ func TestPollChallengeRequests_InitScript(t *testing.T) {
 		Password:      "pass",
 		Key:           "key",
 		MaxConcurrent: 10,
+		DataDir:       t.TempDir(),
 	}
 	srv := NewServer(cfg)
 

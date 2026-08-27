@@ -222,6 +222,44 @@ tr:last-child td { border-bottom: none; }
         <div class="empty-state"><div class="empty-state-icon">✅</div>No one in queue</div>
       </div>
     </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">
+          📋 Recent Activity
+          <span class="badge" id="activity-badge">0</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="activity-filter-event" style="background:var(--bg-tertiary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:6px 8px; font-size:12px;">
+            <option value="">All events</option>
+            <option value="join_attempt">join_attempt</option>
+            <option value="join">join</option>
+            <option value="connect">connect</option>
+            <option value="logout">logout</option>
+            <option value="disconnect">disconnect</option>
+            <option value="go_attempt">go_attempt</option>
+            <option value="admin_kill">admin_kill</option>
+          </select>
+          <input id="activity-filter-student" placeholder="Filter student..." style="background:var(--bg-tertiary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:6px 10px; font-size:12px; width:160px;" />
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Student</th>
+              <th>IP</th>
+              <th>Event</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="activity-body">
+            <tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">📭</div>Loading activity...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -393,6 +431,56 @@ tr:last-child td { border-bottom: none; }
     }
   }
 
+  function renderActivity(entries) {
+    const tbody = document.getElementById('activity-body');
+    const badge = document.getElementById('activity-badge');
+    if (!entries || entries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">📭</div>No activity yet</div></td></tr>';
+      if (badge) badge.textContent = '0';
+      return;
+    }
+    if (badge) badge.textContent = entries.length;
+    tbody.innerHTML = entries.map(e => {
+      const t = e.ts ? new Date(e.ts).toLocaleTimeString() : '—';
+      const evClass = e.event.includes('join') ? 'state-pending' : e.event.includes('logout') || e.event.includes('disconnect') ? 'state-closed' : e.event === 'go_attempt' ? 'state-active' : 'state-orphaned';
+      // Extract IP from detail if present
+      let ip = '—';
+      let detail = e.detail || '';
+      const ipMatch = detail.match(/ip=([^\s]+)/);
+      if (ipMatch) ip = ipMatch[1];
+      return '<tr>' +
+        '<td><span class="token-mono">' + t + '</span></td>' +
+        '<td><strong>' + (e.student || '—') + '</strong></td>' +
+        '<td><span class="token-mono">' + ip + '</span></td>' +
+        '<td><span class="state-badge ' + evClass + '">' + e.event + '</span></td>' +
+        '<td><span class="token-mono" style="max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block;" title="' + detail.replace(/"/g, '&quot;') + '">' + (detail || '—') + '</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function fetchActivity() {
+    if (!adminToken) return;
+    try {
+      const student = document.getElementById('activity-filter-student')?.value?.trim() || '';
+      const ev = document.getElementById('activity-filter-event')?.value || '';
+      const params = new URLSearchParams({ limit: '200' });
+      if (student) params.set('student', student);
+      if (ev) params.set('event', ev);
+      const res = await fetch('/admin/activity?' + params.toString(), {
+        headers: { 'X-Admin-Token': adminToken }
+      });
+      if (res.status === 401 || res.status === 429) {
+        showLoginError('Invalid admin secret');
+        return;
+      }
+      if (!res.ok) return;
+      const data = await res.json();
+      renderActivity(data);
+    } catch (e) {
+      console.error('Failed to fetch activity:', e);
+    }
+  }
+
   async function killSession(token) {
     if (!adminToken) return;
     try {
@@ -463,6 +551,13 @@ tr:last-child td { border-bottom: none; }
     }, 1000);
   }
 
+  // Activity filters: refetch on change
+  document.getElementById('activity-filter-student')?.addEventListener('input', () => {
+    clearTimeout(window._activityDebounce);
+    window._activityDebounce = setTimeout(fetchActivity, 400);
+  });
+  document.getElementById('activity-filter-event')?.addEventListener('change', fetchActivity);
+
   document.getElementById('login-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const secret = document.getElementById('admin-secret').value;
@@ -480,6 +575,8 @@ tr:last-child td { border-bottom: none; }
       document.getElementById('dashboard').classList.add('active');
       if (!pollInterval) {
         pollInterval = setInterval(fetchState, 2000);
+        setInterval(fetchActivity, 3000);
+        fetchActivity();
       }
     } else {
       document.getElementById('login-error').textContent = 'Invalid admin secret';
