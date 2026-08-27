@@ -207,6 +207,7 @@ tr:last-child td { border-bottom: none; }
               <th>IP</th>
               <th>Token</th>
               <th>State</th>
+              <th>Solved</th>
               <th>Uptime</th>
               <th>Actions</th>
             </tr>
@@ -332,16 +333,18 @@ tr:last-child td { border-bottom: none; }
   function renderSessions() {
     const tbody = document.getElementById('sessions-body');
     if (sessions.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">📭</div>No active sessions</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">📭</div>No active sessions</div></td></tr>';
       return;
     }
     tbody.innerHTML = sessions.map(s => {
       const state = s.state || 'unknown';
+      const solved = s.solved != null ? s.solved : 0;
       return '<tr>' +
         '<td><strong>' + s.name + '</strong></td>' +
         '<td><span class="token-mono">' + (s.ip || '—') + '</span></td>' +
         '<td><span class="token-mono" title="' + s.token + '">' + s.token.slice(0, 8) + '...</span></td>' +
         '<td><span class="state-badge state-' + state + '"><span class="dot dot-' + state + '"></span>' + state + '</span></td>' +
+        '<td><strong>' + solved + '</strong> / 10</td>' +
         '<td>' + formatTime(Date.now() - s.created) + '</td>' +
         '<td><button class="btn btn-kill" onclick="killSession(\'' + s.token + '\')">Kill</button></td>' +
         '</tr>';
