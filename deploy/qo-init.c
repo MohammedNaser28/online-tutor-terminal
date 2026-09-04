@@ -64,6 +64,66 @@ struct child_args {
     gid_t host_gid;
 };
 
+static void sanitize_student_name(const char *input, char *output, size_t output_size) {
+    size_t j = 0;
+
+    if (output_size == 0) {
+        return;
+    }
+
+    if (input == NULL || input[0] == '\0') {
+        snprintf(output, output_size, "qo");
+        return;
+    }
+
+    for (size_t i = 0; input[i] != '\0' && j + 1 < output_size; i++) {
+        char c = input[i];
+        if ((c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' || c == '-' || c == '.') {
+            output[j++] = c;
+        } else {
+            output[j++] = '_';
+        }
+    }
+
+    if (j == 0) {
+        snprintf(output, output_size, "qo");
+        return;
+    }
+
+    output[j] = '\0';
+}
+
+static int file_contains(const char *path, const char *needle) {
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        if (errno == ENOENT) {
+            return 0;
+        }
+        perror(path);
+        return -1;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (strstr(line, needle) != NULL) {
+            fclose(file);
+            return 1;
+        }
+    }
+
+    if (ferror(file)) {
+        perror("read");
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+    return 0;
+}
+
 static void mount_pseudo_fs(const char *base) {
     char mountPath[4096];
 
@@ -280,6 +340,8 @@ static void setup_seccomp(void) {
 }
 
 static int spawn_shell(const char *rootfsPath) {
+    (void)rootfsPath;
+
     pid_t shell_pid = fork();
     if (shell_pid < 0) {
         perror("fork");
@@ -301,6 +363,8 @@ static int spawn_shell(const char *rootfsPath) {
            doesn't have). */
         const char *term = getenv("TERM");
         const char *student_name = getenv("QO_STUDENT_NAME");
+        char safe_student_name[128];
+        sanitize_student_name(student_name, safe_student_name, sizeof(safe_student_name));
 
         clearenv();
 
@@ -317,9 +381,9 @@ static int spawn_shell(const char *rootfsPath) {
             setenv("TERM", "xterm", 1);
         }
 
-        if (student_name) {
+        if (safe_student_name[0] != '\0') {
             char ps1[256];
-            snprintf(ps1, sizeof(ps1), "root@%s:~# ", student_name);
+            snprintf(ps1, sizeof(ps1), "root@%s:~# ", safe_student_name);
             setenv("PS1", ps1, 1);
         }
 
@@ -328,62 +392,73 @@ static int spawn_shell(const char *rootfsPath) {
             _exit(1);
         }
 
-        FILE *bashrc = fopen("/root/.bashrc", "a");
-        if (!bashrc) {
-            perror("open /root/.bashrc");
+        FILE *qo_shell = fopen("/root/.qo-shell", "w");
+        if (!qo_shell) {
+            perror("open /root/.qo-shell");
         }
-        if (bashrc) {
-            fprintf(bashrc, "\n");
-            fprintf(bashrc, "__qo_challenge() {\n");
-            fprintf(bashrc, "    local action=\"$1\"\n");
-            fprintf(bashrc, "    shift\n");
-            fprintf(bashrc, "    local args=\"$*\"\n");
-            fprintf(bashrc, "    if [ -n \"$args\" ]; then\n");
-            fprintf(bashrc, "        action=\"${action}:${args}\"\n");
-            fprintf(bashrc, "    fi\n");
-            fprintf(bashrc, "    local req=\"/tmp/.qo-challenge-req\"\n");
-            fprintf(bashrc, "    local resp=\"/tmp/.qo-challenge-resp\"\n");
-            fprintf(bashrc, "    local tmpReq=\"/tmp/.qo-challenge-req.tmp\"\n");
-            fprintf(bashrc, "    : > \"$resp\"\n");
-            fprintf(bashrc, "    printf '%%s' \"$action\" > \"$tmpReq\"\n");
-            fprintf(bashrc, "    mv -f \"$tmpReq\" \"$req\"\n");
-            fprintf(bashrc, "    local i=1\n");
-            fprintf(bashrc, "    while [ $i -le 150 ]; do\n");
-            fprintf(bashrc, "        if [ -s \"$resp\" ]; then\n");
-            fprintf(bashrc, "            cat \"$resp\"\n");
-            fprintf(bashrc, "            > \"$resp\"\n");
-            fprintf(bashrc, "            return\n");
-            fprintf(bashrc, "        fi\n");
-            fprintf(bashrc, "        sleep 0.1\n");
-            fprintf(bashrc, "        i=$((i+1))\n");
-            fprintf(bashrc, "    done\n");
-            fprintf(bashrc, "    echo \"Error: server not responding\"\n");
-            fprintf(bashrc, "}\n");
+        if (qo_shell) {
+            fprintf(qo_shell, "__qo_challenge() {\n");
+            fprintf(qo_shell, "    local action=\"$1\"\n");
+            fprintf(qo_shell, "    shift\n");
+            fprintf(qo_shell, "    local args=\"$*\"\n");
+            fprintf(qo_shell, "    if [ -n \"$args\" ]; then\n");
+            fprintf(qo_shell, "        action=\"${action}:${args}\"\n");
+            fprintf(qo_shell, "    fi\n");
+            fprintf(qo_shell, "    local req=\"/tmp/.qo-challenge-req\"\n");
+            fprintf(qo_shell, "    local resp=\"/tmp/.qo-challenge-resp\"\n");
+            fprintf(qo_shell, "    local tmpReq=\"/tmp/.qo-challenge-req.tmp\"\n");
+            fprintf(qo_shell, "    : > \"$resp\"\n");
+            fprintf(qo_shell, "    printf '%%s' \"$action\" > \"$tmpReq\"\n");
+            fprintf(qo_shell, "    mv -f \"$tmpReq\" \"$req\"\n");
+            fprintf(qo_shell, "    local i=1\n");
+            fprintf(qo_shell, "    while [ $i -le 150 ]; do\n");
+            fprintf(qo_shell, "        if [ -s \"$resp\" ]; then\n");
+            fprintf(qo_shell, "            cat \"$resp\"\n");
+            fprintf(qo_shell, "            > \"$resp\"\n");
+            fprintf(qo_shell, "            return\n");
+            fprintf(qo_shell, "        fi\n");
+            fprintf(qo_shell, "        sleep 0.1\n");
+            fprintf(qo_shell, "        i=$((i+1))\n");
+            fprintf(qo_shell, "    done\n");
+            fprintf(qo_shell, "    echo \"Error: server not responding\"\n");
+            fprintf(qo_shell, "}\n");
             /* EXAM MODE: validation is fully server-side — checkers are
                stripped from the sandbox at session start, so 'go' always
                goes through IPC where the server runs the real checker
                chrooted on the host. Nothing is executed locally. */
-            fprintf(bashrc, "alias quest='__qo_challenge quest'\n");
-            fprintf(bashrc, "alias level='__qo_challenge level'\n");
-            fprintf(bashrc, "alias select='__qo_challenge select'\n");
-            fprintf(bashrc, "alias hint='__qo_challenge hint'\n");
-            fprintf(bashrc, "alias go='__qo_challenge go'\n");
-            fprintf(bashrc, "alias map='__qo_challenge map'\n");
-            fprintf(bashrc, "alias status='__qo_challenge status'\n");
-            fprintf(bashrc, "alias logo='__qo_challenge logo'\n");
-            fprintf(bashrc, "alias help='__qo_challenge help'\n");
-            fprintf(bashrc, "alias clear='printf \"\\033[2J\\033[H\"'\n");
+            fprintf(qo_shell, "alias quest='__qo_challenge quest'\n");
+            fprintf(qo_shell, "alias level='__qo_challenge level'\n");
+            fprintf(qo_shell, "alias select='__qo_challenge select'\n");
+            fprintf(qo_shell, "alias hint='__qo_challenge hint'\n");
+            fprintf(qo_shell, "alias go='__qo_challenge go'\n");
+            fprintf(qo_shell, "alias map='__qo_challenge map'\n");
+            fprintf(qo_shell, "alias status='__qo_challenge status'\n");
+            fprintf(qo_shell, "alias logo='__qo_challenge logo'\n");
+            fprintf(qo_shell, "alias help='__qo_challenge help'\n");
+            fprintf(qo_shell, "alias clear='printf \"\\033[2J\\033[H\"'\n");
             /* Dynamic prompt: always show which level 'go' will validate.
-               studentName was captured before clearenv(); embed it literally
-               since QO_STUDENT_NAME is no longer in the environment. */
-            fprintf(bashrc, "__qo_prompt() {\n");
-            fprintf(bashrc, "    local lvl=\"level1\"\n");
-            fprintf(bashrc, "    [ -f /tmp/.qo-current-level ] && lvl=$(cat /tmp/.qo-current-level)\n");
-            fprintf(bashrc, "    PS1=\"root@%s:[${lvl#level}] \\w # \"\n",
-                    student_name ? student_name : "qo");
-            fprintf(bashrc, "}\n");
-            fprintf(bashrc, "PROMPT_COMMAND=__qo_prompt\n");
-            fclose(bashrc);
+               safe_student_name was captured before clearenv(); embed it
+               literally since QO_STUDENT_NAME is no longer in the environment. */
+            fprintf(qo_shell, "__qo_prompt() {\n");
+            fprintf(qo_shell, "    local lvl=\"level1\"\n");
+            fprintf(qo_shell, "    [ -f /tmp/.qo-current-level ] && lvl=$(cat /tmp/.qo-current-level)\n");
+            fprintf(qo_shell, "    PS1=\"root@%s:[${lvl#level}] \\w # \"\n",
+                    safe_student_name);
+            fprintf(qo_shell, "}\n");
+            fprintf(qo_shell, "PROMPT_COMMAND=__qo_prompt\n");
+            fclose(qo_shell);
+        }
+
+        const char *source_line = "[ -f /root/.qo-shell ] && . /root/.qo-shell";
+        int has_source = file_contains("/root/.bashrc", source_line);
+        if (has_source == 0) {
+            FILE *bashrc = fopen("/root/.bashrc", "a");
+            if (!bashrc) {
+                perror("open /root/.bashrc");
+            } else {
+                fprintf(bashrc, "\n# qo shell integration\n%s\n", source_line);
+                fclose(bashrc);
+            }
         }
 
         execl("/bin/bash", "/bin/bash", "-i", NULL);
