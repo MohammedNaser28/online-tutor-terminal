@@ -22,3 +22,9 @@ server/server-test
 summer-linux/
 test.enc
 transcripts/
+.idea/
+
+
+.env
+.pem
+.key
