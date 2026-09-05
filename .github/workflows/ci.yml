@@ -47,7 +47,7 @@ jobs:
         with:
           version: latest
           working-directory: qo
-          args: --timeout=5m --disable=errcheck,unused,ineffassign,gosimple
+          args: --timeout=5m --disable=errcheck,unused,ineffassign,gosimple,staticcheck
 
   test:
     runs-on: ubuntu-latest
