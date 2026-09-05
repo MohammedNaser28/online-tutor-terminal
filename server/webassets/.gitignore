@@ -1,0 +1,5 @@
+# generated frontend copy is not committed; embed.go pulls from ../../frontend at build time
+# CI syncs via: cp -r frontend/* server/webassets/
+*
+!.gitignore
+!embed.go
