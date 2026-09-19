@@ -1,16 +1,15 @@
-run:
-  timeout: 5m
+version: "2"
 
 linters:
   disable:
     - errcheck
     - unused
     - ineffassign
-    - gosimple
 
 issues:
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - errcheck
-        - vet
+  exclusions:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - govet
